@@ -1,0 +1,20 @@
+{
+    "name": "vanguardapp/projects",
+    "description": "",
+    "authors": [
+        {
+            "name": "Milos Stojanovic",
+            "email": "stojanovic.loshmi@gmail.com"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Vanguard\\Projects\\": "src/"
+        }
+    },
+     "autoload-dev": {
+        "psr-4": {
+            "Vanguard\\Projects\\Tests\\": "tests/"
+        }
+    }
+}

@@ -38,6 +38,31 @@
     </select>
 </div>
 
+        <div class="form-group">
+            <label for="projects">@lang('Assign Projects')</label>
+            <select name="projects[]" id="projects" class="form-control input-solid" multiple style="width: 100%;">
+                @foreach(Vanguard\Projects::all() as $project)
+                    <option value="{{ $project->id }}">{{ $project->name }}</option>
+                @endforeach
+            </select>
+            <small class="form-text text-muted">
+                Hold Ctrl/Cmd to select multiple select. First selected = active project.
+            </small>
+        </div>
+
+        <div class="form-group">
+            <label for="active_project_id">@lang('Active Project')</label>
+            <select name="active_project_id" id="active_project_id" class="form-control input-solid">
+                <option value="">@lang('Auto-select first project')</option>
+                @foreach(Vanguard\Projects::all() as $project)
+                    <option value="{{ $project->id }}">{{ $project->name }}</option>
+                @endforeach
+            </select>
+            <small class="form-text text-muted">
+                This will be the user's default project after login.
+            </small>
+        </div>
+
                     <!-- Regional Coordinator: Multi-county selection -->
                     <div id="regional-coordinator-section" class="form-group" style="display: none;">
                         <label for="counties" style="display: block; width: 100%;">@lang('Counties')</label>
@@ -223,6 +248,11 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 $(document).ready(function () {
+    // Initialize Select2 for projects
+$('#projects').select2({
+    placeholder: 'Select projects...',
+    allowClear: true
+});
     // Initialize Select2 for multi-select
     $('#counties').select2({
         allowClear: true,

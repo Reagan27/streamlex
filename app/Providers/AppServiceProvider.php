@@ -5,6 +5,11 @@ namespace Vanguard\Providers;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\View;           // ← Added
+use Vanguard\Projects;                         // Already present
+use Auth;                                      // Already present (or use auth() helper)
+
+// Your repository bindings
 use Vanguard\Repositories\Appraisal\AppraisalRepository;
 use Vanguard\Repositories\Appraisal\EloquentAppraisalRepository;
 use Vanguard\Repositories\Country\CountryRepository;
@@ -47,10 +52,39 @@ class AppServiceProvider extends ServiceProvider
         \Illuminate\Database\Schema\Builder::defaultStringLength(191);
 
         Factory::guessFactoryNamesUsing(function (string $modelName) {
-            return 'Database\Factories\\'.class_basename($modelName).'Factory';
+            return 'Database\Factories\\' . class_basename($modelName) . 'Factory';
         });
 
         \Illuminate\Pagination\Paginator::useBootstrap();
+
+        // ================================================
+        // Global Project Selector for Navbar
+        // ================================================
+ View::composer(['layouts.app', 'partials.navbar'], function ($view) {
+    $user = auth()->user();
+
+    if (!$user) {
+        $projects = collect();
+    } elseif (
+        $user->isAdmin() ||
+        $user->hasRole(['Manager', 'Finance'])
+    ) {
+        $projects = Projects::orderBy('name')->get();
+    } elseif ($user->role->name === 'Regional_Coordinator') {
+        $countyIds = $user->counties()->pluck('counties.id');
+        $projects = Projects::whereHas('users', function ($q) use ($countyIds) {
+            $q->whereIn('county_id', $countyIds);
+        })->orderBy('name')->get();
+    } elseif ($user->role->name === 'County_Coordinator') {
+        $projects = Projects::whereHas('users', function ($q) use ($user) {
+            $q->where('county_id', $user->county_id);
+        })->orderBy('name')->get();
+    } else {
+        $projects = collect();
+    }
+
+    $view->with('projects', $projects);
+});
     }
 
     /**

@@ -4,6 +4,7 @@ namespace Vanguard;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Project;
 
 class UserContractSignature extends Model 
 {
@@ -29,7 +30,8 @@ class UserContractSignature extends Model
         'transfer_from_county',
         'transfer_reason',
         'transfer_date',
-        'transfer_type'
+        'transfer_type',
+        'project_id'
     ];
 
     protected $attributes = [
@@ -58,6 +60,11 @@ class UserContractSignature extends Model
     public function terminatedBy()
     {
         return $this->belongsTo(User::class, 'terminated_by');
+    }
+
+    public function project()
+    {
+        return $this->belongsTo(Project::class);
     }
 
     public function isActive()

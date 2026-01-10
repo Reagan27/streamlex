@@ -28,7 +28,7 @@ use Vanguard\Http\Controllers\Web\Users\SessionsController;
 use Vanguard\Http\Controllers\Web\Emails\EmailController;
 use Vanguard\Http\Controllers\Web\Emails\EmailImportController;
 use Vanguard\Http\Controllers\Web\Group\GroupController;
-use Vanguard\Http\Controllers\Web\MyContractController;
+use Vanguard\Http\Controllers\Web\Projects\ProjectsController;
 use Vanguard\Http\Controllers\Web\Support\SupportIssueController;
 use Vanguard\Http\Controllers\Web\Support\SupportCategoryController;
 use Vanguard\Http\Controllers\Web\Users\SensitiveInfoController;
@@ -50,6 +50,7 @@ use Vanguard\Http\Controllers\Web\UserDocumentController;
 use Vanguard\Http\Controllers\Web\Users\BankDetailsController;
 use Vanguard\Http\Controllers\Web\Visualization\ExcelController;
 use Vanguard\Http\Controllers\Web\Visualization\VisualizationController;
+use Vanguard\Http\Controllers\Auth\ChangePasswordController;
 use Vanguard\Onboarding;
 use Vanguard\Http\Controllers\Web\BotAdminController;
 
@@ -188,9 +189,19 @@ Route::group(['middleware' => ['auth', 'verified']], function () {
         Route::get('wards', [ProfileController::class, 'getWards'])->name('profile.get.wards');
     });
 
+    ##Change Password
+//     Route::middleware(['auth'])->group(function () {
+//      Route::get('/change-password', [ChangePasswordController::class, 'showForceChangeForm'])
+//         ->name('password.force.change');
+
+//     Route::post('/change-password', [ChangePasswordController::class, 'forceUpdate'])
+//         ->name('password.force.update');
+//    });
+
     /**
      * Two-Factor Authentication Setup
      */
+
     Route::group(['middleware' => 'two-factor'], function () {
         Route::post('two-factor/enable', 'TwoFactorController@enable')->name('two-factor.enable');
 
@@ -664,6 +675,12 @@ Route::group(['middleware' => ['auth', 'verified']], function () {
         Route::delete('{id}', [RecommendationCertificateController::class, 'destroy'])
             ->name('recommendation_certificates.destroy');
     });
+});
+
+Route::prefix('projects')->name('projects.')->group(function () {
+    Route::get('/', [ProjectsController::class, 'index'])->name('index');
+    Route::get('/create', [ProjectsController::class, 'create'])->name('create');
+    Route::post('/', [ProjectsController::class, 'store'])->name('store');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {

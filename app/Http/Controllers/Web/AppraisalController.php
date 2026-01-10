@@ -27,65 +27,99 @@ class AppraisalController extends Controller
         $this->roleHierarchyService = $roleHierarchyService;
     }
     
-    public function index(Request $request)
-    {
-        $currentUser = auth()->user();
-        $query = User::query();
+ public function index(Request $request)
+{
+    $currentUser = auth()->user();
 
-        $query->whereHas('contractSignatures', function ($q) {
-            $q->where('status', 'accepted');
+    $query = User::query();
+
+    // Only users with accepted contracts
+    $query->whereHas('contractSignatures', function ($q) {
+        $q->where('status', 'accepted');
+    });
+
+    // Search filter
+    if ($request->filled('search')) {
+        $searchTerm = $request->input('search');
+        $query->where(function ($q) use ($searchTerm) {
+            $q->where('first_name', 'like', "%{$searchTerm}%")
+              ->orWhere('last_name', 'like', "%{$searchTerm}%")
+              ->orWhere('email', 'like', "%{$searchTerm}%");
         });
-
-        if ($request->filled('search')) {
-            $searchTerm = $request->input('search');
-            $query->where(function ($q) use ($searchTerm) {
-                $q->where('first_name', 'like', "%{$searchTerm}%")
-                  ->orWhere('last_name', 'like', "%{$searchTerm}%")
-                  ->orWhere('email', 'like', "%{$searchTerm}%");
-            });
-        }
-    
-        if ($currentUser->hasRole('Admin')) {
-            // Admin can see all users
-            $query->with(['appraisals', 'county']);
-        } elseif ($currentUser->role->name === 'Regional_Coordinator') {
-            $subordinateRoles = $this->roleHierarchyService->getAllSubordinateRoles($currentUser->role->name);
-            $query->whereHas('role', function ($q) use ($subordinateRoles) {
-                $q->whereIn('name', $subordinateRoles);
-            });
-    
-            $assignedCountyIds = $currentUser->counties()->pluck('counties.id');
-            if ($request->filled('county')) {
-                $query->where('county_id', $request->county);
-            } else {
-                $query->whereIn('county_id', $assignedCountyIds);
-            }
-        } elseif ($currentUser->role->name === 'County_Coordinator') {
-            // County Coordinator can only see Supervisors and Field Officers in their county
-            $subordinateRoles = $this->roleHierarchyService->getAllSubordinateRoles($currentUser->role->name);
-            $query->whereHas('role', function ($q) use ($subordinateRoles) {
-                $q->whereIn('name', $subordinateRoles);
-            })->where('county_id', $currentUser->county_id);
-        } elseif ($currentUser->role->name === 'Supervisor') {
-            // Supervisor can only see assigned field officers
-            $query->where('supervisor_id', $currentUser->id)
-                  ->whereHas('role', function ($q) {
-                      $q->where('name', 'Field_Officer');
-                  });
-        } else {
-            // Other roles can't see any users
-            $query->where('id', $currentUser->id);
-        }
-    
-        $users = $query->with(['appraisals', 'county'])->paginate(20);
-    
-        $assignedCounties = $currentUser->role->name === 'Regional_Coordinator'
-            ? $currentUser->counties()->pluck('name', 'counties.id')
-            : collect();
-    
-        return view('appraisal.index', compact('users', 'assignedCounties'));
     }
 
+    // GLOBAL PROJECT FILTER (from navbar dropdown)
+    if ($request->filled('project_id')) {
+        $projectId = (int) $request->project_id;
+
+        // Only apply for roles that can see multiple projects
+        if (
+            $currentUser->isAdmin() ||
+            $currentUser->hasRole('Manager') ||
+            $currentUser->hasRole('Finance') ||
+            in_array($currentUser->role->name, ['Regional_Coordinator', 'County_Coordinator'])
+        ) {
+            $query->whereHas('projects', function ($q) use ($projectId) {
+                $q->where('projects.id', $projectId)
+                  ->where('projects_user.is_active_project', true);
+            });
+        }
+    }
+
+    // Role-based visibility (your existing logic)
+    if ($currentUser->hasRole('Admin')) {
+        // Admin sees all
+        $query->with(['appraisals', 'county', 'role']);
+
+    } elseif ($currentUser->role->name === 'Regional_Coordinator') {
+        $subordinateRoles = $this->roleHierarchyService->getAllSubordinateRoles($currentUser->role->name);
+
+        $query->whereHas('role', function ($q) use ($subordinateRoles) {
+            $q->whereIn('name', $subordinateRoles);
+        });
+
+        $assignedCountyIds = $currentUser->counties()->pluck('counties.id');
+
+        if ($request->filled('county')) {
+            $query->where('county_id', $request->county);
+        } else {
+            $query->whereIn('county_id', $assignedCountyIds);
+        }
+
+        $query->with(['appraisals', 'county', 'role']);
+
+    } elseif ($currentUser->role->name === 'County_Coordinator') {
+        $subordinateRoles = $this->roleHierarchyService->getAllSubordinateRoles($currentUser->role->name);
+
+        $query->whereHas('role', function ($q) use ($subordinateRoles) {
+            $q->whereIn('name', $subordinateRoles);
+        })->where('county_id', $currentUser->county_id);
+
+        $query->with(['appraisals', 'county', 'role']);
+
+    } elseif ($currentUser->role->name === 'Supervisor') {
+        $query->where('supervisor_id', $currentUser->id)
+              ->whereHas('role', function ($q) {
+                  $q->where('name', 'Field_Officer');
+              });
+
+        $query->with(['appraisals', 'county', 'role']);
+
+    } else {
+        // Fallback: only themselves
+        $query->where('id', $currentUser->id)
+              ->with(['appraisals', 'county', 'role']);
+    }
+
+    $users = $query->paginate(20);
+
+    // Counties dropdown for Regional Coordinators
+    $assignedCounties = $currentUser->role->name === 'Regional_Coordinator'
+        ? $currentUser->counties()->pluck('name', 'counties.id')
+        : collect();
+
+    return view('appraisal.index', compact('users', 'assignedCounties'));
+}
 
     public function create(User $user)
     {

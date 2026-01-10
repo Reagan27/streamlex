@@ -15,6 +15,7 @@ use Maatwebsite\Excel\Validators\ValidationException;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use Vanguard\UserDocument;
+use Vanguard\Projects;
 
 class PaymentController extends Controller
 {

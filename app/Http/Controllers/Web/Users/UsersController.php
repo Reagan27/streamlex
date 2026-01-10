@@ -7,6 +7,9 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Vanguard\Events\User\Deleted;
+use Vanguard\Jobs\SendEmailJob;
+use Illuminate\Support\Str;
+use Illuminate\Auth\Events\Registered;
 use Vanguard\Http\Controllers\Controller;
 use Vanguard\Http\Requests\User\CreateUserRequest;
 use Vanguard\Repositories\Country\CountryRepository;
@@ -33,9 +36,12 @@ use Vanguard\Setting;
 use Vanguard\Traits\AutoOnboardingTrait;
 use Vanguard\UserDocument;
 use Vanguard\Bank;
+use Vanguard\Projects;
+
 
 class UsersController extends Controller
 {
+
 
     protected $users;
     protected $roles;
@@ -163,45 +169,79 @@ class UsersController extends Controller
         }
 
         // Apply county filter if selected
-        if ($request->filled('county_id')) {
-            // Ensure user has access to the selected county
-            if (
-                $currentUser->isAdmin() ||
-                $currentUser->hasRole('Manager') ||
-                ($currentUser->role->name === 'Regional_Coordinator' && $currentUser->counties->contains($request->county_id)) ||
-                $currentUser->county_id === (int)$request->county_id
-            ) {
-                $query->where('county_id', $request->county_id);
-            }
+      if ($request->filled('county_id')) {
+        if (
+            $currentUser->isAdmin() ||
+            $currentUser->hasRole('Manager') ||
+            $currentUser->hasRole('Finance') ||
+            ($currentUser->role->name === 'Regional_Coordinator' && $currentUser->counties->contains($request->county_id)) ||
+            $currentUser->county_id === (int)$request->county_id
+        ) {
+            $query->where('county_id', $request->county_id);
         }
+    }
 
-        // Apply search filter
-        if ($request->filled('search')) {
-            $search = $request->input('search');
-            $query->where(function ($q) use ($search) {
-                $q->where('first_name', 'like', "%{$search}%")
-                    ->orWhere('last_name', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%")
-                    ->orWhere('phone', 'like', "%{$search}%");
-            });
-        }
+    // Apply search filter (unchanged)
+    if ($request->filled('search')) {
+        $search = $request->input('search');
+        $query->where(function ($q) use ($search) {
+            $q->where('first_name', 'like', "%{$search}%")
+                ->orWhere('last_name', 'like', "%{$search}%")
+                ->orWhere('email', 'like', "%{$search}%")
+                ->orWhere('phone', 'like', "%{$search}%");
+        });
+    }
 
-        // Apply role filter
-        if ($request->filled('role')) {
-            $query->where('role_id', $request->input('role'));
-        }
+    // Apply role filter (unchanged)
+    if ($request->filled('role')) {
+        $query->where('role_id', $request->input('role'));
+    }
 
-        // Apply status filter
-        if ($request->filled('status')) {
-            $query->where('status', $request->input('status'));
-        }
+    // Apply status filter (unchanged)
+    if ($request->filled('status')) {
+        $query->where('status', $request->input('status'));
+    }
 
-        $users = $query->paginate(20);
-        $roles = Role::all();
-        $statuses = ['' => __('All')] + UserStatus::lists();
-        $counties = $availableCounties;
+if ($request->filled('project_id')) {
+    $projectId = (int) $request->project_id;
 
-        return view('user.list', compact('users', 'roles', 'statuses', 'counties'));
+    if (
+        $currentUser->isAdmin() ||
+        $currentUser->hasRole('Manager') ||
+        $currentUser->hasRole('Finance') ||
+        in_array($currentUser->role->name, ['Regional_Coordinator', 'County_Coordinator'])
+    ) {
+        $query->whereHas('projects', function ($q) use ($projectId) {
+            $q->where('projects.id', $projectId); 
+            $q->where('projects_user.is_active_project', true);
+        });
+    }
+}
+
+    $users = $query->paginate(20);
+
+    // Fetch data for dropdowns
+    $roles = Role::all();
+    $statuses = ['' => __('All')] + UserStatus::lists();
+    $counties = $availableCounties;
+
+    if ($currentUser->isAdmin() || $currentUser->hasRole('Manager') || $currentUser->hasRole('Finance')) {
+        $projects = Projects::orderBy('name')->get();
+    } elseif ($currentUser->role->name === 'Regional_Coordinator') {
+        $countyIds = $currentUser->counties()->pluck('counties.id');
+        $projects = Projects::whereHas('users', function ($q) use ($countyIds) {
+            $q->whereIn('county_id', $countyIds);
+        })->orderBy('name')->get();
+    } elseif ($currentUser->role->name === 'County_Coordinator') {
+        $projects = Projects::whereHas('users', function ($q) use ($currentUser) {
+            $q->where('county_id', $currentUser->county_id);
+        })->orderBy('name')->get();
+    } else {
+        // Supervisor / Field Officer / normal User → no project filter dropdown
+        $projects = collect();
+    }
+
+    return view('user.list', compact('users', 'roles', 'statuses', 'counties', 'projects'));
     }
 
     public function search(Request $request)
@@ -505,74 +545,191 @@ class UsersController extends Controller
     }
 
 
+    // public function store(CreateUserRequest $request): RedirectResponse
+    // {
+    //     \Log::info('Raw request data:', $request->all());
+
+    //     $data = $request->validated();
+
+    //     // Set default values for fields not in the request
+    //     $data['status'] = $data['status'] ?? UserStatus::ACTIVE;
+    //     $data['email_verified_at'] = now();
+    //     $data['role_status'] = 0;
+
+    //     // Handle role-specific fields
+    //     $role = Role::findOrFail($request->role_id);
+    //     $counties = [];
+    //     switch ($role->name) {
+    //         case 'Regional_Coordinator':
+    //             $counties = $request->input('counties', []);
+    //             unset($data['county_id'], $data['subcounty_id'], $data['ward_id']);
+    //             break;
+    //         case 'County_Coordinator':
+    //             $data['county_id'] = $request->input('county_id');
+    //             unset($data['subcounty_id'], $data['ward_id']);
+    //             break;
+    //         case 'Supervisor':
+    //             $data['county_id'] = $request->input('county_id');
+    //             $data['subcounty_id'] = $request->input('subcounty_id');
+    //             unset($data['ward_id']);
+    //             break;
+    //         case 'Field_Officer':
+    //             $data['county_id'] = $request->input('county_id');
+    //             $data['subcounty_id'] = $request->input('subcounty_id');
+    //             $data['ward_id'] = $request->input('ward_id');
+    //             break;
+    //     }
+
+    //     \Log::info('User data before creation:', $data);
+
+    //     // Create the user
+    //     $user = $this->users->create($data);
+
+    //     \Log::info('User created:', $user->toArray());
+
+    //     // Sync counties for Regional Coordinator
+    //     if ($role->name === 'Regional_Coordinator' && !empty($counties)) {
+    //         try {
+    //             $user->counties()->sync($counties);
+    //             \Log::info('Counties synced for user:', ['user_id' => $user->id, 'counties' => $counties]);
+    //         } catch (\Exception $e) {
+    //             \Log::error('Error syncing counties for user:', ['user_id' => $user->id, 'error' => $e->getMessage()]);
+    //         }
+    //     }
+
+    //     $emailConfirmationEnabled = Setting::get('reg_email_confirmation', false);
+
+    //     if ($emailConfirmationEnabled) {
+    //         try {
+    //             Mail::to($user->email)->send(new UserCreated($user));
+    //             \Log::info('User creation email sent:', ['user_id' => $user->id, 'email' => $user->email]);
+    //         } catch (\Exception $e) {
+    //             \Log::error('Error sending user creation email:', ['user_id' => $user->id, 'error' => $e->getMessage()]);
+    //         }
+    //     } else {
+    //         \Log::info('User creation email not sent (email confirmation disabled):', ['user_id' => $user->id, 'email' => $user->email]);
+    //     }
+    //     // Send email notification
+    //     return redirect()->route('users.index')
+    //         ->withSuccess(__('User created successfully.'));
+    // }
+
     public function store(CreateUserRequest $request): RedirectResponse
-    {
-        \Log::info('Raw request data:', $request->all());
+{
+    \Log::info('Raw request data:', $request->all());
 
-        $data = $request->validated();
+    $data = $request->validated();
 
-        // Set default values for fields not in the request
-        $data['status'] = $data['status'] ?? UserStatus::ACTIVE;
-        $data['email_verified_at'] = now();
-        $data['role_status'] = 0;
+    // Set default values
+    $data['status'] = $data['status'] ?? UserStatus::ACTIVE;
+    $data['email_verified_at'] = now();
+    $data['role_status'] = 0;
 
-        // Handle role-specific fields
-        $role = Role::findOrFail($request->role_id);
-        $counties = [];
-        switch ($role->name) {
-            case 'Regional_Coordinator':
-                $counties = $request->input('counties', []);
-                unset($data['county_id'], $data['subcounty_id'], $data['ward_id']);
-                break;
-            case 'County_Coordinator':
-                $data['county_id'] = $request->input('county_id');
-                unset($data['subcounty_id'], $data['ward_id']);
-                break;
-            case 'Supervisor':
-                $data['county_id'] = $request->input('county_id');
-                $data['subcounty_id'] = $request->input('subcounty_id');
-                unset($data['ward_id']);
-                break;
-            case 'Field_Officer':
-                $data['county_id'] = $request->input('county_id');
-                $data['subcounty_id'] = $request->input('subcounty_id');
-                $data['ward_id'] = $request->input('ward_id');
-                break;
-        }
+    // Handle password: use provided or generate random
+    $plainPassword = $request->filled('password') 
+        ? $request->password 
+        : Str::random(12);
 
-        \Log::info('User data before creation:', $data);
+    $data['password'] = Hash::make($plainPassword);
 
-        // Create the user
-        $user = $this->users->create($data);
+    // Handle role-specific fields
+    $role = Role::findOrFail($request->role_id);
+    $counties = [];
 
-        \Log::info('User created:', $user->toArray());
-
-        // Sync counties for Regional Coordinator
-        if ($role->name === 'Regional_Coordinator' && !empty($counties)) {
-            try {
-                $user->counties()->sync($counties);
-                \Log::info('Counties synced for user:', ['user_id' => $user->id, 'counties' => $counties]);
-            } catch (\Exception $e) {
-                \Log::error('Error syncing counties for user:', ['user_id' => $user->id, 'error' => $e->getMessage()]);
-            }
-        }
-
-        $emailConfirmationEnabled = Setting::get('reg_email_confirmation', false);
-
-        if ($emailConfirmationEnabled) {
-            try {
-                Mail::to($user->email)->send(new UserCreated($user));
-                \Log::info('User creation email sent:', ['user_id' => $user->id, 'email' => $user->email]);
-            } catch (\Exception $e) {
-                \Log::error('Error sending user creation email:', ['user_id' => $user->id, 'error' => $e->getMessage()]);
-            }
-        } else {
-            \Log::info('User creation email not sent (email confirmation disabled):', ['user_id' => $user->id, 'email' => $user->email]);
-        }
-        // Send email notification
-        return redirect()->route('users.index')
-            ->withSuccess(__('User created successfully.'));
+    switch ($role->name) {
+        case 'Regional_Coordinator':
+            $counties = $request->input('counties', []);
+            unset($data['county_id'], $data['subcounty_id'], $data['ward_id']);
+            break;
+        case 'County_Coordinator':
+            $data['county_id'] = $request->input('county_id');
+            unset($data['subcounty_id'], $data['ward_id']);
+            break;
+        case 'Supervisor':
+            $data['county_id'] = $request->input('county_id');
+            $data['subcounty_id'] = $request->input('subcounty_id');
+            unset($data['ward_id']);
+            break;
+        case 'Field_Officer':
+            $data['county_id'] = $request->input('county_id');
+            $data['subcounty_id'] = $request->input('subcounty_id');
+            $data['ward_id'] = $request->input('ward_id');
+            break;
     }
+
+    \Log::info('User data before creation:', $data);
+
+    $data['first_authentication'] = true;
+    $data['initial_password']     = true;
+
+    // Create the user
+    $user = $this->users->create($data);
+// After: $user = $this->users->create($data);
+
+// Assign projects
+if ($request->has('projects') && is_array($request->projects)) {
+    $projectData = [];
+    foreach ($request->projects as $projectId) {
+        $isActive = ($request->active_project_id == $projectId);
+        $projectData[$projectId] = ['is_active_project' => $isActive];
+    }
+
+    $user->projects()->sync($projectData);
+
+    // if ($request->filled('active_project_id')) {
+    //     $user->update(['current_project_id' => $request->active_project_id]);
+    // } elseif (!empty($request->projects)) {
+    //     $user->update(['current_project_id' => $request->projects[0]]);
+    // }
+}
+    \Log::info('User created:', $user->toArray());
+
+    // Sync counties for Regional Coordinator
+    if ($role->name === 'Regional_Coordinator' && !empty($counties)) {
+        try {
+            $user->counties()->sync($counties);
+            \Log::info('Counties synced for user:', ['user_id' => $user->id, 'counties' => $counties]);
+        } catch (\Exception $e) {
+            \Log::error('Error syncing counties:', ['user_id' => $user->id, 'error' => $e->getMessage()]);
+        }
+    }
+
+    // Fire Registered event (good for listeners)
+    event(new Registered($user));
+
+    // ALWAYS send welcome email when admin creates user (ignore reg_email_confirmation)
+    $this->sendAdminWelcomeEmail($user, $plainPassword);
+
+    return redirect()->route('users.index')
+        ->withSuccess(__('User created successfully. Welcome email with login details has been sent.'));
+}
+
+
+private function sendAdminWelcomeEmail(User $user, string $plainPassword): void
+{
+    $loginUrl = config('app.frontend_url', url('/')) . '/login';
+
+    $subject = "Your Account is Ready – " . config('app.name');
+
+    $message = view('emails.welcome_new_user', [   // ← keep your template path
+        'user'      => $user,
+        'password'  => $plainPassword,
+        'loginUrl'  => $loginUrl,
+        'createdBy' => auth()->user(),
+    ])->render();
+
+    // Pass the three arguments the constructor expects
+    dispatch(new SendEmailJob(
+        $user->email,          // recipient
+        $subject,              // subject
+        $message               // HTML body
+    ));
+
+    \Log::info('Admin welcome email dispatched via SendEmailJob', [
+        'user_id' => $user->id,
+        'email'   => $user->email,
+    ]);
+}
 
     public function create(
         CountryRepository $countryRepository,

@@ -20,6 +20,8 @@ use Vanguard\Services\ContractPdfService;
 use Vanguard\Services\RoleHierarchyService;
 use Vanguard\User;
 use Vanguard\UserContractSignature;
+use Vanguard\Projects;
+use Vanguard\Contract; 
 
 class ContractController extends Controller
 {
@@ -31,34 +33,78 @@ class ContractController extends Controller
         $this->contractPdfService = $contractPdfService;
     }
 
-    public function index(Request $request)
+
+public function index(Request $request)
     {
-        // Start with the base query
-        $query = AdminContract::with('counties');
-    
-        // Apply search filter if search parameter is provided
+        $currentUser = Auth::user();
+
+        $query = UserContractSignature::with(['user.role', 'user.county', 'contract']);
+
+        // Search by user name/email/phone
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('title', 'like', "%{$search}%")
-                  ->orWhere('status', 'like', "%{$search}%")
-                  ->orWhereHas('counties', function ($subQ) use ($search) {
-                      $subQ->where('name', 'like', "%{$search}%");
-                  });
+            $query->whereHas('user', function ($q) use ($search) {
+                $q->where('first_name', 'like', "%{$search}%")
+                  ->orWhere('last_name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('phone', 'like', "%{$search}%");
             });
         }
-    
-        // Get the contracts and calculate remaining days
-        $contracts = $query->get()->map(function ($contract) {
-            $contract->remaining_days = $this->calculateRemainingDays($contract);
-            // Ensure start_date is a Carbon instance
-            $contract->start_date = $contract->start_date ? Carbon::parse($contract->start_date) : null;
-            return $contract;
-        });
-    
-        return view('contracts.index', compact('contracts'));
-    }
 
+        // County filter
+        if ($request->filled('county')) {
+            $query->whereHas('user', fn($q) => $q->where('county_id', $request->county));
+        }
+
+        // Role filter
+        if ($request->filled('role')) {
+            $query->whereHas('user', fn($q) => $q->where('role_id', $request->role));
+        }
+
+        // Status filter
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        // Date range filter (example — adjust as needed)
+        if ($request->filled('date_range')) {
+            $range = $request->date_range;
+            $now = Carbon::now();
+
+            if ($range === 'today') {
+                $query->whereDate('created_at', $now->format('Y-m-d'));
+            } elseif ($range === 'week') {
+                $query->whereBetween('created_at', [$now->startOfWeek(), $now->endOfWeek()]);
+            } elseif ($range === 'month') {
+                $query->whereMonth('created_at', $now->month);
+            } elseif ($range === 'year') {
+                $query->whereYear('created_at', $now->year);
+            }
+        }
+
+        // PROJECT FILTER — now works perfectly!
+        if ($request->filled('project_id')) {
+            $projectId = (int) $request->project_id;
+
+            // Only apply for users who can see multiple projects
+            if (
+                $currentUser->isAdmin() ||
+                $currentUser->hasRole('Manager') ||
+                $currentUser->hasRole('Finance') ||
+                in_array($currentUser->role->name, ['Regional_Coordinator', 'County_Coordinator'])
+            ) {
+                $query->where('project_id', $projectId);
+            }
+        }
+
+        $contracts = $query->paginate(20);
+
+        // Pass data for filters
+        $counties = County::orderBy('name')->get();
+        $roles = Role::all();
+
+        return view('contracts.list', compact('contracts', 'counties', 'roles'));
+    }
     
     // public function update(Request $request, AdminContract $contract)
     // {
@@ -190,41 +236,41 @@ class ContractController extends Controller
     //             ->with('error', 'Failed to create contract: ' . $e->getMessage());
     //     }
     // }
-
-    public function store(Request $request)
+public function store(Request $request)
 {
     $validatedData = $request->validate([
-        'title' => 'required|string|max:255',
-        'start_date' => 'required|date',
-        'number_of_days' => 'required|integer',
-        'description' => 'required|string',
-        'role_id' => 'required|exists:roles,id',
-        'counties' => 'required|array',
-        'counties.*' => 'exists:counties,id',
-        'status' => 'required|in:draft,published,dropped',
-        'authority_name' => 'required|string|max:255',
-        'authority_designation' => 'required|string|max:255',
+        'title'               => 'required|string|max:255',
+        'start_date'          => 'required|date',
+        'number_of_days'      => 'required|integer',
+        'description'         => 'required|string',
+        'role_id'             => 'required|exists:roles,id',
+        'counties'            => 'required|array',
+        'counties.*'          => 'exists:counties,id',
+        'status'              => 'required|in:draft,published,dropped',
+        'authority_name'      => 'required|string|max:255',
+        'authority_designation'=> 'required|string|max:255',
         'authority_signature' => 'required|string',
+        'project_id'          => 'required|exists:projects,id', // ← NEW VALIDATION
     ]);
 
     try {
         DB::beginTransaction();
 
-        // Calculate actual end date accounting for Sundays
         $endDate = $this->getEndDate($validatedData['start_date'], $validatedData['number_of_days']);
-        
+
         $contract = AdminContract::create([
-            'title' => $validatedData['title'],
-            'start_date' => $validatedData['start_date'],
-            'end_date' => $endDate,
-            'number_of_days' => $validatedData['number_of_days'], // This now represents working days
-            'description' => $validatedData['description'],
-            'role_id' => $validatedData['role_id'],
-            'status' => $validatedData['status'],
-            'authority_name' => $validatedData['authority_name'],
-            'authority_designation' => $validatedData['authority_designation'],
-            'authority_signature' => $validatedData['authority_signature'],
-            'active_for_onboarding' => $request->has('active_for_onboarding')
+            'title'                => $validatedData['title'],
+            'start_date'           => $validatedData['start_date'],
+            'end_date'             => $endDate,
+            'number_of_days'       => $validatedData['number_of_days'],
+            'description'          => $validatedData['description'],
+            'role_id'              => $validatedData['role_id'],
+            'status'               => $validatedData['status'],
+            'authority_name'       => $validatedData['authority_name'],
+            'authority_designation'=> $validatedData['authority_designation'],
+            'authority_signature'  => $validatedData['authority_signature'],
+            'active_for_onboarding'=> $request->has('active_for_onboarding'),
+            'project_id'           => $validatedData['project_id'], // ← SAVE PROJECT
         ]);
 
         ContractVersion::create([
@@ -235,15 +281,16 @@ class ContractController extends Controller
             'authority_name' => $contract->authority_name,
             'authority_designation' => $contract->authority_designation,
             'change_reason' => 'Initial contract creation',
-            'changed_by' => auth()->id()
+            'changed_by' => auth()->id(),
+            'project_id' => $contract->project_id, // optional: copy to version
         ]);
 
         $contract->counties()->sync($request->input('counties', []));
 
         DB::commit();
+
         return redirect()->route('contracts.index')
             ->with('success', 'Contract created successfully.');
-
     } catch (\Exception $e) {
         DB::rollBack();
         \Log::error('Contract creation failed', [

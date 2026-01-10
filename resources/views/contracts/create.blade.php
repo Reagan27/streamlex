@@ -90,6 +90,15 @@
                     <label for="number_of_days">Number of Days</label>
                     <input type="number" class="form-control" id="number_of_days" name="number_of_days" required>
                 </div>
+                 <div class="form-group">
+            <label for="active_for_onboarding">Active for Onboarding</label>
+            <div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="active_for_onboarding" name="active_for_onboarding" value="1">
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>   
             </div>
             <div class="col-md-6">
                 <div class="form-group">
@@ -116,17 +125,21 @@
                         <option value="drop">Drop</option>
                     </select>
                 </div>
+                     <div class="form-group">
+    <label for="project_id">Project <span class="text-danger">*</span></label>
+    <select class="form-control" id="project_id" name="project_id" required>
+        <option value="">Select a Project</option>
+        @foreach(Vanguard\Projects::orderBy('name')->get() as $project)
+            <option value="{{ $project->id }}">{{ $project->name }}</option>
+        @endforeach
+    </select>
+</div>
+
             </div>
         </div>
-        <div class="form-group mt-1">
-            <label for="active_for_onboarding">Active for Onboarding</label>
-            <div>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="active_for_onboarding" name="active_for_onboarding" value="1">
-                    <span class="slider"></span>
-                </label>
-            </div>
-        </div>
+   
+    
+        
         <div class="form-group">
             <label for="description">Description</label>
             <textarea class="form-control" id="description" name="description" required></textarea>

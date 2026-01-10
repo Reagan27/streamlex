@@ -70,4 +70,26 @@
     @hook('app:scripts')
     @stack('scripts')
 </body>
+    @yield('scripts')
+    @hook('app:scripts')
+    @stack('scripts')
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const projectSelect = document.getElementById('global-project-select');
+        if (projectSelect) {
+            projectSelect.addEventListener('change', function () {
+                const value = this.value;
+                const url = new URL(window.location);
+                if (value) {
+                    url.searchParams.set('project_id', value);
+                } else {
+                    url.searchParams.delete('project_id');
+                }
+                window.location.href = url.toString();
+            });
+        }
+    });
+    </script>
+</body>
+</html>
 </html>

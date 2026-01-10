@@ -56,7 +56,7 @@
                         <th class="min-width-100">@lang('Name')</th>
                         <th class="min-width-100">@lang('Quantity')</th>
                         <th class="min-width-100">@lang('Category')</th>
-                        <th class="text-center">@lang('Actions')</th>
+                        <th class="text-center">@lang('Action')</th>
                     </tr>
                     </thead>
                     <tbody>

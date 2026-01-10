@@ -17,6 +17,7 @@ use Laravel\Sanctum\HasApiTokens;
 use Mail;
 use Vanguard\Events\User\RequestedPasswordResetEmail;
 use Vanguard\Presenters\Traits\Presentable;
+use Vanguard\Projects;
 use Vanguard\Presenters\UserPresenter;
 use Vanguard\Support\Authorization\AuthorizationUserTrait;
 use Vanguard\Support\CanImpersonateUsers;
@@ -30,6 +31,8 @@ use Vanguard\Traits\AutoOnboardingTrait;
  * @property string $email
  * @property string $username
  * @property string $phone
+ * @property boolean $first_authentication
+ * @property boolean $initial_password
  * @property string|null $avatar
  * @property int|null $county_id
  * @property int|null $subcounty_id
@@ -74,7 +77,7 @@ class User extends Authenticatable implements MustVerifyEmail
      * @var array
      */
     protected $fillable = [
-        'email', 'password', 'username', 'first_name', 'last_name', 'phone', 'avatar',
+        'email', 'password', 'username', 'first_name', 'last_name', 'phone', 'first_authentication', 'initial_password','avatar',
         'country_id','county_id', 'subcounty_id', 'ward_id', 'birthday', 'last_login', 'confirmation_token', 'status',
         'remember_token', 'role_id', 'email_verified_at', 'supervisor_id','completed','policy_agreed',
         'address', 'country_id', 'banking_submitted', 'documents_submitted', 'contract_signed',
@@ -253,6 +256,29 @@ public function contractSignatures()
     return $this->hasMany(UserContractSignature::class);
 }
 
+// In your User model (Vanguard\User)
+
+public function projects(): BelongsToMany
+{
+    return $this->belongsToMany(Projects::class)
+                ->withPivot('is_active_project')
+                ->withTimestamps();
+}
+
+public function activeProject()
+{
+    return $this->projects()->wherePivot('is_active_project', true)->first();
+}
+
+public function setActiveProject(Projects $project)
+{
+    // Deactivate all others
+    $this->projects()->updateExistingPivot($this->projects()->pluck('id'), ['is_active_project' => false]);
+
+    // Activate this one
+    $this->projects()->syncWithoutDetaching([$project->id => ['is_active_project' => true]]);
+}
+
 
 public function assignRole(Role $role)
 {
@@ -337,6 +363,12 @@ protected static function booted()
             $user->saveQuietly();
         }
     });
+}
+
+public function isInitialPasswordExpired(): bool
+{
+    return $this->initial_password && 
+           $this->created_at->diffInDays(now()) > 7;
 }
 
 public function canAssign(User $superior, User $subordinate): bool

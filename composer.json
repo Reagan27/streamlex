@@ -23,6 +23,10 @@
         {
             "type": "vcs",
             "url": "https://github.com/loshmis/laravel-countries"
+        },
+        {
+            "type": "path",
+            "url": "./plugins/Projects"
         }
     ],
     "require": {
@@ -36,8 +40,8 @@
         "jenssegers/agent": "^2.5",
         "lab404/laravel-impersonate": "^1.2",
         "laravel/fortify": "^1.21",
-        "laravel/framework": "^6.0",
-        "laravel/sanctum": "^4.0",
+        "laravel/framework": "^10.0",
+        "laravel/sanctum": "^3.2",
         "laravel/socialite": "^5.0",
         "laravel/tinker": "^2.7",
         "laravel/ui": "^4.0",
@@ -63,7 +67,7 @@
         "laravel/pint": "^1.13",
         "laravel/sail": "^1.0",
         "mockery/mockery": "^1.4.4",
-        "nunomaduro/collision": "^8.1",
+        "nunomaduro/collision": "^7.0",
         "phpunit/phpunit": "^10.0",
         "spatie/laravel-ignition": "^2.0"
     },
@@ -99,7 +103,10 @@
     "config": {
         "preferred-install": "dist",
         "sort-packages": true,
-        "optimize-autoloader": true
+        "optimize-autoloader": true,
+        "audit": {
+            "block-insecure": false
+        }
     },
     "minimum-stability": "stable",
     "prefer-stable": true

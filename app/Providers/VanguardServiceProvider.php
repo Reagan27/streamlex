@@ -36,6 +36,7 @@ class VanguardServiceProvider extends BaseVanguardServiceProvider
             \Vanguard\Support\Plugins\Visualization::class,
             \Vanguard\Support\Plugins\Users::class,
             \Vanguard\Support\Plugins\Assets::class,
+            \Vanguard\Support\Plugins\Projects::class,
             \Vanguard\Support\Plugins\Contracting::class,
             \Vanguard\Support\Plugins\Settings::class,
             \Vanguard\Announcements\Announcements::class,

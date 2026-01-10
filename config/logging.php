@@ -25,7 +25,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => (int) env('LOG_DAYS', 14), // cast to int explicitly
+            'days' => (int) env('LOG_DAYS', 14),
         ],
 
         'slack' => [
@@ -42,6 +42,7 @@ return [
             'with' => [
                 'stream' => 'php://stderr',
             ],
+            'level' => env('LOG_LEVEL', 'debug'),
         ],
 
         'syslog' => [
@@ -53,6 +54,7 @@ return [
             'driver' => 'errorlog',
             'level' => env('LOG_LEVEL', 'debug'),
         ],
+
     ],
 
 ];

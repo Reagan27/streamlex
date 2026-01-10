@@ -21,6 +21,7 @@ class Kernel extends HttpKernel
         \Illuminate\Foundation\Http\Middleware\ValidatePostSize::class,
         \Vanguard\Http\Middleware\TrimStrings::class,
         \Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
+        \Vanguard\Http\Middleware\LogHttpRequests::class,
     ];
 
     /**
@@ -31,17 +32,20 @@ class Kernel extends HttpKernel
     protected $middlewareGroups = [
         'web' => [
             \Vanguard\Http\Middleware\EncryptCookies::class,
+            \Vanguard\Http\Middleware\LogHttpRequests::class,
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
             \Illuminate\Session\Middleware\StartSession::class,
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,
             \Vanguard\Http\Middleware\VerifyCsrfToken::class,
             \Vanguard\Http\Middleware\SetLocale::class,
+            \Vanguard\Http\Middleware\ForcePasswordChange::class,
             \Vanguard\Http\Middleware\HandleFileUploadErrors::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
             'banned',
         ],
         'api' => [
             \Vanguard\Http\Middleware\UseApiGuard::class,
+            \Vanguard\Http\Middleware\LogHttpRequests::class,
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
             'throttle:60,1',
             'bindings',

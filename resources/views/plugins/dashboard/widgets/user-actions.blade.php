@@ -33,7 +33,7 @@
                 <div class="icon my-3">
                     <i class="fas fa-server fa-2x"></i>
                 </div>
-                <p class="lead mb-0">@lang('Activity Log')</p>
+                <p class="lead mb-0">@lang('Activity Logs')</p>
             </a>
         </div>
     </div>

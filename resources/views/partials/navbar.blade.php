@@ -7,6 +7,8 @@
         </a>
     </div>
 
+
+
     <div>
         @if (app('impersonate')->isImpersonating())
             <a href="{{ route('impersonate.leave') }}" class="navbar-toggler text-danger hidden-md">
@@ -29,7 +31,9 @@
         </button>
     </div>
 
+
     <div class="collapse navbar-collapse py-2" id="top-navigation">
+
         <div class="row ml-2">
             <div class="col-lg-12 d-flex align-items-left align-items-md-center flex-column flex-md-row py-3">
                 <h4 class="page-header mb-0">
@@ -42,70 +46,80 @@
                             <i class="fa fa-home"></i>
                         </a>
                     </li>
-
                     @yield('breadcrumbs')
                 </ol>
             </div>
         </div>
 
-        <ul class="navbar-nav ml-auto pr-3 flex-row">
-            @if (app('impersonate')->isImpersonating())
-                <li class="nav-item d-flex align-items-center visible-lg">
-                    <a href="{{ route('impersonate.leave') }}" class="btn text-danger">
-                        <i class="fas fa-user-secret mr-2"></i>
-                        @lang('Stop Impersonating')
-                    </a>
-                </li>
+  <ul class="navbar-nav ml-auto pr-3 flex-row">
+ @if($projects->count() > 0)
+    <li class="nav-item mr-3 d-flex align-items-center">
+        <small class="text-muted mr-2 mt-1">Project:</small>
+        <select name="project_id" id="global-project-select" class="form-control input-solid" style="width: 220px;">
+            <option value="">@lang('All Projects')</option>
+            @foreach($projects as $project)
+                <option value="{{ $project->id }}" {{ request('project_id') == $project->id ? 'selected' : '' }}>
+                    {{ $project->name }}
+                </option>
+            @endforeach
+        </select>
+    </li>
+@endif
+
+
+        </div>
+
+    {{-- Impersonate Button --}}
+    @if (app('impersonate')->isImpersonating())
+    <li class="nav-item d-flex align-items-center">
+        <a href="{{ route('impersonate.leave') }}" class="btn text-danger">
+            <i class="fas fa-user-secret mr-2"></i> @lang('Stop Impersonating')
+        </a>
+    </li>
+    @endif
+
+    {{-- Other Navbar Items (announcements, notifications, etc.) --}}
+    @hook('navbar:items')
+
+    {{-- User Avatar Dropdown --}}
+    <li class="nav-item dropdown">
+        <a class="nav-link dropdown-toggle"
+           href="#"
+           id="navbarDropdown"
+           role="button"
+           data-toggle="dropdown"
+           aria-haspopup="true"
+           aria-expanded="false">
+            <img src="{{ auth()->user()->present()->avatar }}"
+                 width="50"
+                 height="50"
+                 class="rounded-circle img-thumbnail img-responsive">
+        </a>
+        <div class="dropdown-menu dropdown-menu-right position-absolute p-0" aria-labelledby="navbarDropdown">
+            <div class="text-center py-3">
+                <h5 class="mt-2">
+                    <a href="{{ route('profile') }}">{{ auth()->user()->present()->nameOrEmail }}</a>
+                </h5>
+                <p class="text-muted mb-0">
+                    {{ auth()->user()->role->display_name ?? 'No Role Assigned' }}
+                </p>
+            </div>
+            <a class="dropdown-item py-2" href="{{ route('profile') }}">
+                <i class="fas fa-user text-muted mr-2"></i> @lang('My Profile')
+            </a>
+            @if (config('session.driver') == 'database')
+            <a href="{{ route('profile.sessions') }}" class="dropdown-item py-2">
+                <i class="fas fa-list text-muted mr-2"></i> @lang('Active Sessions')
+            </a>
             @endif
+            @hook('navbar:dropdown')
+            <div class="dropdown-divider m-0"></div>
+            <a class="dropdown-item py-2" href="{{ route('auth.logout') }}">
+                <i class="fas fa-sign-out-alt text-muted mr-2"></i> @lang('Logout')
+            </a>
+        </div>
+    </li>
 
-            @hook('navbar:items')
-
-      
-            <li class="nav-item dropdown">
-        
-                <a class="nav-link dropdown-toggle"
-                   href="#"
-                   id="navbarDropdown"
-                   role="button"
-                   data-toggle="dropdown"
-                   aria-haspopup="true"
-                   aria-expanded="false">
-                    <img src="{{ auth()->user()->present()->avatar }}"
-                         width="50"
-                         height="50"
-                         class="rounded-circle img-thumbnail img-responsive">
-                </a>
-                <div class="dropdown-menu dropdown-menu-right position-absolute p-0" aria-labelledby="navbarDropdown">
-            <div class="text-center">
-            <h5 class=" mt-3">
-            <a href="{{ route('profile') }}">{{ auth()->user()->present()->nameOrEmail }}</a>
-        </h5> 
-        <p class="text-muted ">
-            {{ auth()->user()->role->display_name ?? 'No Role Assigned' }} <!-- Display the role name -->
-        </p>   
-            </div>    
-                <a class="dropdown-item py-2" href="{{ route('profile') }}">
-                        <i class="fas fa-user text-muted mr-2"></i>
-                        @lang('My Profile')
-                    </a>
-
-                    @if (config('session.driver') == 'database')
-                        <a href="{{ route('profile.sessions') }}" class="dropdown-item py-2">
-                            <i class="fas fa-list text-muted mr-2"></i>
-                            @lang('Active Sessions')
-                        </a>
-                    @endif
-
-                    @hook('navbar:dropdown')
-
-                    <div class="dropdown-divider m-0"></div>
-
-                    <a class="dropdown-item py-2" href="{{ route('auth.logout') }}">
-                        <i class="fas fa-sign-out-alt text-muted mr-2"></i>
-                        @lang('Logout')
-                    </a>
-                </div>
-            </li>
-        </ul>
+</ul>
     </div>
 </nav>

@@ -42,16 +42,6 @@
                 </div>
 
                 <div class="col-md-2 mt-2 mt-md-0">
-                    <select name="status" id="status" class="form-control input-solid">
-                        @foreach($statuses as $key => $value)
-                            <option value="{{ $key }}" {{ Request::get('status') == $key ? 'selected' : '' }}>
-                                {{ $value }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div class="col-md-2 mt-2 mt-md-0">
                     <select name="county_id" id="county" class="form-control input-solid">
                         <option value="">@lang('All Counties')</option>
                         @foreach($counties as $county)
@@ -61,7 +51,16 @@
                         @endforeach
                     </select>
                 </div>
-
+     <div class="col-md-2 mt-2 mt-md-0">
+    <select name="project_id" id="project" class="form-control input-solid">
+        <option value="">@lang('Select Projects')</option>
+        @foreach($projects as $project)
+            <option value="{{ $project->id }}" {{ Request::get('project_id') == $project->id ? 'selected' : '' }}>
+                {{ $project->name }}
+            </option>
+        @endforeach
+    </select>
+</div>
                 @if(auth()->user()->hasRole('Admin') || auth()->user()->hasRole('Manager'))
                     <div class="col-md-5">
                         <a href="{{ route('users.create') }}" class="btn btn-primary btn-rounded float-right ml-2">
@@ -165,7 +164,7 @@
 @section('scripts')
 <script>
 $(document).ready(function() {
-    $("#status, #county").change(function () {
+    $("#status, #county, #project").change(function () {
         $("#users-form").submit();
     });
 

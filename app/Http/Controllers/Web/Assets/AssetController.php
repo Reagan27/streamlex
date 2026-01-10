@@ -2,6 +2,7 @@
 
 namespace Vanguard\Http\Controllers\Web\Assets;
 use Vanguard\Asset;
+use Vanguard\Projects;
 use Vanguard\AssetAssignment;
 use Vanguard\AssetDistribution;
 use Vanguard\UserInventory;
@@ -18,15 +19,57 @@ class AssetController extends Controller
         $this->roleHierarchy = $roleHierarchy;
     }
 
-    public function index()
-    {
-        try {
-            $assets = Asset::all();
-            return view('asset.index', compact('assets'));
-        } catch (\Exception $e) {
-            return response()->view('errors.custom', ['message' => 'An error occurred while loading assets.'], 500);
+   public function index(Request $request)
+{
+ $query = Asset::with(['assignments.user', 'distributions.distributedTo']);
+
+    // Optional: existing filters (search, category, status, etc.)
+    if ($request->filled('search')) {
+        $query->where('name', 'like', "%{$request->search}%")
+              ->orWhere('sku_code', 'like', "%{$request->search}%")
+              ->orWhere('serial_number', 'like', "%{$request->search}%")
+              ->orWhere('imei_number', 'like', "%{$request->search}%");
+    }
+
+    if ($request->filled('category')) {
+        $query->where('category', $request->category);
+    }
+
+    if ($request->filled('status')) {
+        $query->where('status', $request->status);
+    }
+
+  // PROJECT FILTER
+    if ($request->filled('project_id')) {
+        $projectId = (int) $request->project_id;
+
+        $currentUser = auth()->user();
+
+        if (
+            $currentUser->isAdmin() ||
+            $currentUser->hasRole('Manager') ||
+            $currentUser->hasRole('Finance') ||
+            in_array($currentUser->role->name, ['Regional_Coordinator', 'County_Coordinator'])
+        ) {
+            $query->where(function ($q) use ($projectId) {
+                $q->whereHas('assignments.user.projects', function ($subQ) use ($projectId) {
+                    $subQ->where('projects.id', $projectId)
+                         ->where('projects_user.is_active_project', true);
+                })
+                ->orWhereHas('distributions.distributedTo.projects', function ($subQ) use ($projectId) {
+                    $subQ->where('projects.id', $projectId)
+                         ->where('projects_user.is_active_project', true);
+                });
+            });
         }
     }
+
+    $assets = $query->paginate(20);
+
+    $categories = Asset::distinct('category')->pluck('category');
+
+    return view('asset.index', compact('assets', 'categories'));
+}
 
 
     public function create()

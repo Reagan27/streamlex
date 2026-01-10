@@ -73,7 +73,7 @@ Route::group(['prefix' => 'api'], function () {
     Route::get('excel-data-lookup', [ExcelDataController::class, 'lookup']);
 });
 
-// Bot Webhook Routes (these will be prefixed with /api automatically)
+
 Route::post('bot/webhook/message-status', [BotWebhookController::class, 'messageStatus']);
 Route::post('bot/webhook/rating', [BotWebhookController::class, 'receiveRating']);
 Route::post('bot/webhook/issue', [BotWebhookController::class, 'receiveIssue']);

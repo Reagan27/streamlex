@@ -1,0 +1,37 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up()
+    {
+        Schema::table('user_contract_signatures', function (Blueprint $table) {
+            $table->boolean('archived')->default(false);
+            $table->timestamp('archived_at')->nullable();
+            $table->string('archive_reason')->nullable();
+            $table->unsignedInteger('archived_by')->nullable();
+            $table->foreign('archived_by')
+                  ->references('id')
+                  ->on('users')
+                  ->onDelete('set null')
+                  ->onUpdate('cascade');
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down()
+    {
+        Schema::table('user_contract_signatures', function (Blueprint $table) {
+            $table->dropForeign(['archived_by']);
+            $table->dropColumn(['archived', 'archived_at', 'archive_reason', 'archived_by']);
+        });
+    }
+};

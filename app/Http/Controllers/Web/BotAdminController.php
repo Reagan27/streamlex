@@ -689,13 +689,22 @@ class BotAdminController extends Controller
         return view('bot.ratings', compact('ratings', 'stats'));
     }
 
-    public function issues()
+   public function issues()
     {
         $issues = BotIssue::with(['user', 'assignedUser'])
             ->orderBy('created_at', 'desc')
             ->paginate(20);
 
-        return view('bot.issues', compact('issues'));
+       
+        $stats = [
+            'total_issues' => BotIssue::count(),
+            'pending' => BotIssue::where('status', 'pending')->count(),
+            'in_progress' => BotIssue::where('status', 'in_progress')->count(),
+            'resolved' => BotIssue::where('status', 'resolved')->count(),
+            'closed' => BotIssue::where('status', 'closed')->count(),
+        ];
+
+        return view('bot.issues', compact('issues', 'stats'));
     }
 
     public function updateIssueStatus(Request $request, $id)

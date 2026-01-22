@@ -86,4 +86,13 @@ Route::prefix('bot/webhook')->group(function () {
     Route::post('issue', [BotWebhookController::class, 'receiveIssue']);
     Route::get('issue-status', [BotWebhookController::class, 'getIssueStatus']);
     Route::get('batch-stats', [BotWebhookController::class, 'getBatchStats']);
+
+
+    Route::post('issues/update', [BotWebhookController::class, 'updateIssueStatus']);
+    Route::post('announcements/views', [BotWebhookController::class, 'recordAnnouncementView']);
+    
+   
+    Route::post('ratings/responses', [BotWebhookController::class, 'receiveRating']); 
+    Route::post('issues', [BotWebhookController::class, 'receiveIssue']); 
+    Route::post('broadcasts/status', [BotWebhookController::class, 'messageStatus']); 
 });

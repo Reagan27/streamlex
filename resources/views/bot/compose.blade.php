@@ -6,96 +6,18 @@
 <div class="container-fluid">
     <div class="card">
         <div class="card-body">
-            <h5 class="card-title">
-                <i class="fas fa-robot"></i> Compose Bot Message
-            </h5>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-robot"></i> Compose Regular Message
+                </h5>
+                <a href="{{ route('bot.compose', ['mode' => 'rating']) }}" class="btn btn-outline-primary">
+                    <i class="fas fa-star"></i> Switch to Rating Mode
+                </a>
+            </div>
             
             <form id="bot-message-form">
                 @csrf
                 
-                <!-- Message Type Toggle -->
-                <div class="row mb-4">
-                    <div class="col-md-12">
-                        <div class="card bg-light">
-                            <div class="card-body">
-                                <div class="d-flex align-items-center justify-content-between">
-                                    <div>
-                                        <h6 class="mb-1">Message Type</h6>
-                                        <small class="text-muted" id="mode-description">
-                                            Regular communication mode
-                                        </small>
-                                    </div>
-                                    <div class="custom-control custom-switch" style="transform: scale(1.5);">
-                                        <input type="checkbox" class="custom-control-input" id="rating-mode-toggle">
-                                        <label class="custom-control-label" for="rating-mode-toggle">
-                                            <span class="badge badge-primary" id="mode-badge">Regular Message</span>
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Rating Configuration (Hidden by default) -->
-                <div id="rating-config" style="display: none;">
-                    <div class="card border-primary mb-4">
-                        <div class="card-header bg-primary text-white">
-                            <i class="fas fa-star"></i> Rating Configuration
-                        </div>
-                        <div class="card-body">
-                            <!-- All options in one row -->
-                            <div class="row align-items-center">
-                                <!-- Rating Type -->
-                                <div class="col-md-5">
-                                    <label class="mb-1 d-block">Rating Type <span class="text-danger">*</span></label>
-                                    <div class="d-flex align-items-center">
-                                        <span class="text-muted small mr-2" id="rating-type-label">Thumbs</span>
-                                        <div class="custom-control custom-switch mx-2">
-                                            <input type="checkbox" class="custom-control-input" id="rating-type-toggle">
-                                            <label class="custom-control-label" for="rating-type-toggle"></label>
-                                        </div>
-                                        <span class="text-muted small ml-2">Scale (1-5)</span>
-                                    </div>
-                                    <input type="hidden" name="rating_type" id="rating-type" value="thumbs">
-                                </div>
-
-                                <!-- Vertical Divider -->
-                                <div class="col-md-auto px-2">
-                                    <div class="vr" style="width: 1px; height: 50px; background-color: #dee2e6;"></div>
-                                </div>
-
-                                <!-- Allow Comments -->
-                                <div class="col-md-3">
-                                    <div class="d-flex align-items-center justify-content-between">
-                                        <label class="mb-0 mr-2">Allow Comments</label>
-                                        <div class="custom-control custom-switch">
-                                            <input type="checkbox" class="custom-control-input" id="allow-comments" checked>
-                                            <label class="custom-control-label" for="allow-comments"></label>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Vertical Divider -->
-                                <div class="col-md-auto px-2">
-                                    <div class="vr" style="width: 1px; height: 50px; background-color: #dee2e6;"></div>
-                                </div>
-
-                                <!-- Allow Skip -->
-                                <div class="col-md-3">
-                                    <div class="d-flex align-items-center justify-content-between">
-                                        <label class="mb-0 mr-2">Allow Skip</label>
-                                        <div class="custom-control custom-switch">
-                                            <input type="checkbox" class="custom-control-input" id="allow-skip" checked>
-                                            <label class="custom-control-label" for="allow-skip"></label>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Filters Section -->
                 <div class="row mb-4">
                     <div class="col-md-3">
@@ -145,7 +67,7 @@
                 </div>
 
                 <!-- Message Template -->
-                <div class="form-group" id="template-group">
+                <div class="form-group">
                     <label>Template (Optional)</label>
                     <select class="form-control" id="template-select">
                         <option value="">-- Select Template --</option>
@@ -171,7 +93,7 @@
                     </div>
                 </div>
                
-                <div class="form-group" id="attachment-group">
+                <div class="form-group">
                     <label>Attachments (Optional)</label>
                     <div class="custom-file">
                         <input type="file" class="custom-file-input" id="attachments" name="attachments[]" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
@@ -184,8 +106,7 @@
                 </div>
 
                 <input type="hidden" name="recipients" id="recipients-data">
-                <input type="hidden" name="message_type" id="message-type" value="regular">
-                <input type="hidden" name="rating_config" id="rating-config-data">
+                <input type="hidden" name="message_type" value="regular">
 
                 <div class="form-group">
                     <div class="d-flex justify-content-between">
@@ -193,7 +114,7 @@
                             <i class="fas fa-times"></i> Cancel
                         </a>
                         <button type="submit" class="btn btn-success" id="send-btn" disabled>
-                            <i class="fas fa-paper-plane"></i> <span id="send-btn-text">Send Messages</span>
+                            <i class="fas fa-paper-plane"></i> Send Messages
                         </button>
                     </div>
                 </div>
@@ -202,104 +123,31 @@
     </div>
 </div>
 
-@push('styles')
-<style>
-/* Compact horizontal rating configuration */
-#rating-config .card-body {
-    padding: 1.5rem;
-}
-
-#rating-config label {
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: #333;
-}
-
-#rating-config .custom-switch {
-    padding-left: 2.25rem;
-}
-
-#rating-config .custom-switch .custom-control-label::before {
-    width: 2rem;
-    height: 1rem;
-}
-
-#rating-config .custom-switch .custom-control-label::after {
-    width: 0.875rem;
-    height: 0.875rem;
-}
-
-#rating-config .custom-control-input:checked ~ .custom-control-label::before {
-    background-color: #28a745;
-    border-color: #28a745;
-}
-
-#rating-type-label {
-    font-size: 0.85rem;
-}
-
-/* Vertical divider */
-.vr {
-    display: inline-block;
-    align-self: stretch;
-    width: 1px;
-    min-height: 1em;
-    background-color: currentColor;
-    opacity: 0.25;
-}
-</style>
-@endpush
-
 @push('scripts')
 <script>
 $(document).ready(function() {
     let recipients = [];
     let attachmentFiles = [];
     const maxCharsPerSms = 160;
-    let isRatingMode = false;
 
-    // Rating Mode Toggle
-    $('#rating-mode-toggle').on('change', function() {
-        isRatingMode = $(this).is(':checked');
-        
-        if (isRatingMode) {
-            // Show rating config
-            $('#rating-config').slideDown();
-            
-            // Hide template and attachments in rating mode
-            $('#template-group').hide();
-            $('#attachment-group').hide();
-            
-            // Update UI
-            $('#mode-badge').removeClass('badge-primary').addClass('badge-warning').text('Rating Mode');
-            $('#mode-description').text('Collect ratings and feedback from recipients');
-            $('#send-btn-text').text('Send Rating Request');
-            $('#message-type').val('rating');
-        } else {
-            // Hide rating config
-            $('#rating-config').slideUp();
-            
-            // Show template and attachments in regular mode
-            $('#template-group').show();
-            $('#attachment-group').show();
-            
-            // Update UI
-            $('#mode-badge').removeClass('badge-warning').addClass('badge-primary').text('Regular Message');
-            $('#mode-description').text('Regular communication mode');
-            $('#send-btn-text').text('Send Messages');
-            $('#message-type').val('regular');
-        }
-    });
+    // Character count
+    function updateCharAndSmsCount() {
+        const message = $('#message-content').val();
+        const charCount = message.length;
+        const smsCount = Math.ceil(charCount / maxCharsPerSms) || 1;
+        $('#char-count').text(charCount);
+        $('#sms-count').text(smsCount);
+    }
 
-    // Rating type toggle
-    $('#rating-type-toggle').on('change', function() {
-        const isScale = $(this).is(':checked');
-        if (isScale) {
-            $('#rating-type').val('scale');
-            $('#rating-type-label').text('Scale (1-5)');
-        } else {
-            $('#rating-type').val('thumbs');
-            $('#rating-type-label').text('Thumbs');
+    $('#message-content').on('input', updateCharAndSmsCount);
+
+    // Template selection
+    $('#template-select').on('change', function() {
+        const selectedOption = $(this).find(':selected');
+        const message = selectedOption.data('message');
+        if (message) {
+            $('#message-content').val(message);
+            updateCharAndSmsCount();
         }
     });
 
@@ -312,7 +160,6 @@ $(document).ready(function() {
             all_users: $('#switch-all-users').is(':checked') ? 1 : 0
         };
 
-        // Only load if we have some filter selected
         if (!filters.all_users && !filters.group_id && !filters.role_id && !filters.county_id) {
             $('#recipient-count').html('');
             $('#send-btn').prop('disabled', true);
@@ -343,27 +190,6 @@ $(document).ready(function() {
             }
         });
     }
-
-    // Character count
-    function updateCharAndSmsCount() {
-        const message = $('#message-content').val();
-        const charCount = message.length;
-        const smsCount = Math.ceil(charCount / maxCharsPerSms) || 1;
-        $('#char-count').text(charCount);
-        $('#sms-count').text(smsCount);
-    }
-
-    $('#message-content').on('input', updateCharAndSmsCount);
-
-    // Template selection
-    $('#template-select').on('change', function() {
-        const selectedOption = $(this).find(':selected');
-        const message = selectedOption.data('message');
-        if (message) {
-            $('#message-content').val(message);
-            updateCharAndSmsCount();
-        }
-    });
 
     // All users switch
     $('#switch-all-users').change(function() {
@@ -453,36 +279,12 @@ $(document).ready(function() {
             return;
         }
 
-        
-        let ratingConfig = null;
-        if (isRatingMode) {
-            ratingConfig = {
-                rating_type: $('#rating-type').val(),
-                scale_min: 1,
-                scale_max: 5,
-                allow_comment: $('#allow-comments').is(':checked'),
-                allow_skip: $('#allow-skip').is(':checked'),
-            };
-            $('#rating-config-data').val(JSON.stringify(ratingConfig));
-        }
-
-        console.log('🔍 DEBUG: Submitting form', {
-            message_type: isRatingMode ? 'rating' : 'regular',
-            has_rating_config: !!ratingConfig,
-            rating_config: ratingConfig
-        });
-
         $('#send-btn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Sending...');
 
         const formData = new FormData();
         formData.append('message', message);
         formData.append('recipients', JSON.stringify(recipients));
-        formData.append('message_type', isRatingMode ? 'rating' : 'regular');
-        
-        if (ratingConfig) {
-            formData.append('rating_config', JSON.stringify(ratingConfig));
-        }
-        
+        formData.append('message_type', 'regular');
         formData.append('filters', JSON.stringify({
             role_id: $('#role_id').val(),
             county_id: $('#county_id').val(),
@@ -490,12 +292,9 @@ $(document).ready(function() {
         }));
         formData.append('_token', '{{ csrf_token() }}');
         
-        // Only add attachments in regular mode
-        if (!isRatingMode) {
-            attachmentFiles.forEach((file, index) => {
-                formData.append(`attachments[${index}]`, file);
-            });
-        }
+        attachmentFiles.forEach((file, index) => {
+            formData.append(`attachments[${index}]`, file);
+        });
 
         $.ajax({
             url: '{{ route("bot.send") }}',
@@ -507,10 +306,7 @@ $(document).ready(function() {
                 Swal.fire({
                     icon: 'success',
                     title: 'Success!',
-                    html: `
-                        <p>${response.total_count} ${isRatingMode ? 'rating requests' : 'messages'} queued for sending.</p>
-                        ${isRatingMode ? '<p class="text-muted">Recipients will be able to respond with ratings.</p>' : ''}
-                    `,
+                    text: `${response.total_count} messages queued for sending.`,
                     timer: 3000
                 }).then(() => {
                     window.location.href = '{{ route("bot.index") }}';
@@ -523,7 +319,7 @@ $(document).ready(function() {
                     title: 'Error',
                     text: error
                 });
-                $('#send-btn').prop('disabled', false).html(`<i class="fas fa-paper-plane"></i> <span>${isRatingMode ? 'Send Rating Request' : 'Send Messages'}</span>`);
+                $('#send-btn').prop('disabled', false).html('<i class="fas fa-paper-plane"></i> Send Messages');
             }
         });
     });

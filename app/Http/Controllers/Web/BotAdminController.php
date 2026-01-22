@@ -17,6 +17,8 @@ use Vanguard\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class BotAdminController extends Controller
 {
@@ -40,142 +42,322 @@ class BotAdminController extends Controller
         return view('bot.index', compact('batches', 'stats'));
     }
 
-    public function compose()
+    /**
+     * Show the compose message form
+     * Supports both regular messages and rating requests via ?mode=rating
+     */
+    public function compose(Request $request)
     {
         $templates = BotTemplate::where('is_active', true)->get();
         $groups = Group::all();
         $roles = Role::all();
         $counties = County::pluck('name', 'id');
 
+        // Check if rating mode is requested
+        $isRatingMode = $request->query('mode') === 'rating';
+
+        if ($isRatingMode) {
+            return view('bot.compose-rating', compact('templates', 'groups', 'roles', 'counties'));
+        }
+
         return view('bot.compose', compact('templates', 'groups', 'roles', 'counties'));
     }
 
-   public function send(Request $request)
+    public function send(Request $request)
     {
-        Log::info('🔍 Bot send request received', [
-            'message_type' => $request->input('message_type'),
-            'has_rating_config' => $request->has('rating_config'),
-            'rating_config_raw' => $request->input('rating_config'),
-        ]);
+        try {
+            Log::info('Bot send request received', [
+                'message_type' => $request->input('message_type'),
+                'has_rating_config' => $request->has('rating_config'),
+            ]);
 
+            // Parse and validate recipients
+            $recipients = $this->parseRecipients($request);
+            
+            // Validate request based on message type
+            $validatedData = $this->validateRequest($request, $recipients);
+            
+            // Process attachments (only for regular messages)
+            $attachmentUrls = $this->processAttachments($request);
+            
+            // Filter valid recipients
+            $validRecipients = $this->filterValidRecipients($recipients);
+            
+            if ($validRecipients->isEmpty()) {
+                return $this->errorResponse('No valid recipients found. All recipients must have a phone number.', 422);
+            }
+            
+            // Parse rating config if needed
+            $ratingConfig = null;
+            if ($request->input('message_type') === 'rating') {
+                $ratingConfig = $this->parseRatingConfig($request);
+            }
+            
+            // Create batch
+            $batch = $this->createBatch($request, $validRecipients, $ratingConfig);
+            
+            // Create messages
+            $messageIds = $this->createMessages($request, $validRecipients, $batch, $attachmentUrls, $ratingConfig);
+            
+            // Dispatch jobs
+            $this->dispatchJobs($messageIds);
+            
+            // Return success response
+            return $this->successResponse($batch, $validRecipients, count($recipients), count($attachmentUrls));
+            
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
+            ], 422);
+            
+        } catch (\Exception $e) {
+            Log::error('Bot send error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return $this->errorResponse($e->getMessage(), 500);
+        }
+    }
+    
+    /**
+     * Parse and decode recipients from request
+     */
+    private function parseRecipients(Request $request): array
+    {
         $recipients = $request->input('recipients');
-
+        
         if (is_string($recipients)) {
             $recipients = json_decode($recipients, true);
-
+            
             if (json_last_error() !== JSON_ERROR_NONE) {
                 Log::error('Failed to decode recipients JSON', [
                     'error' => json_last_error_msg(),
                 ]);
-
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid recipients format: ' . json_last_error_msg()
-                ], 422);
+                
+                throw new \InvalidArgumentException('Invalid recipients format: ' . json_last_error_msg());
             }
         }
-
+        
         if (!is_array($recipients)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Recipients must be an array'
-            ], 422);
+            throw new \InvalidArgumentException('Recipients must be an array');
         }
-
-      
-        $validator = \Validator::make([
-            'message' => $request->input('message'),
-            'recipients' => $recipients,
-            'message_type' => $request->input('message_type', 'regular'),
-        ], [
-            'message' => 'required|string|max:1000',
+        
+        return $recipients;
+    }
+    
+    /**
+     * Validate request based on message type
+     */
+    private function validateRequest(Request $request, array $recipients): array
+    {
+        $messageType = $request->input('message_type', 'regular');
+        
+        // Base validation rules
+        $rules = [
+            'message' => $messageType === 'rating' 
+                ? 'required|string|max:500' 
+                : 'required|string|max:1000',
             'recipients' => 'required|array|min:1',
-            'recipients.*.phone' => 'nullable|string',
+            'recipients.*.phone' => 'required|string',
             'recipients.*.name' => 'nullable|string',
-            'recipients.*.email' => 'nullable|string',
-            'message_type' => 'required|in:regular,rating',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors()
-            ], 422);
+            'recipients.*.email' => 'nullable|email',
+            'message_type' => ['required', Rule::in(['regular', 'rating'])],
+            'filters' => 'nullable',
+            'filters.group_id' => 'nullable|integer|exists:groups,id',
+            'filters.role_id' => 'nullable|integer|exists:roles,id',
+            'filters.county_id' => 'nullable|integer',
+        ];
+        
+        $messages = [
+            'message.required' => $messageType === 'rating' 
+                ? 'Rating question is required.' 
+                : 'Message content is required.',
+            'message.max' => $messageType === 'rating' 
+                ? 'Rating question cannot exceed 500 characters.' 
+                : 'Message cannot exceed 1000 characters.',
+            'recipients.required' => 'At least one recipient is required.',
+            'recipients.*.phone.required' => 'All recipients must have a phone number.',
+        ];
+        
+        // Add rating-specific validation
+        if ($messageType === 'rating') {
+            $rules['rating_config'] = 'required|string';
+            $messages['rating_config.required'] = 'Rating configuration is required for rating messages.';
         }
-
-     
-        $attachmentUrls = [];
-        if ($request->hasFile('attachments')) {
-            foreach ($request->file('attachments') as $file) {
-                try {
-                    $path = $file->store('bot-attachments', 'public');
-                    $attachmentUrls[] = [
-                        'name' => $file->getClientOriginalName(),
-                        'url' => asset('storage/' . $path),
-                        'type' => $file->getMimeType(),
-                        'size' => $file->getSize(),
-                    ];
-                } catch (\Exception $e) {
-                    Log::error('Failed to upload attachment', [
-                        'error' => $e->getMessage()
-                    ]);
-                }
+        
+        // Add attachment validation for regular messages
+        if ($messageType === 'regular' && $request->hasFile('attachments')) {
+            $rules['attachments'] = 'array|max:5';
+            $rules['attachments.*'] = 'file|max:5120|mimes:pdf,jpg,jpeg,png,doc,docx';
+            $messages['attachments.max'] = 'You can upload a maximum of 5 attachments.';
+            $messages['attachments.*.max'] = 'Each attachment must not exceed 5MB.';
+            $messages['attachments.*.mimes'] = 'Attachments must be PDF, JPG, PNG, DOC, or DOCX files.';
+        }
+        
+        $validator = Validator::make(
+            array_merge($request->all(), ['recipients' => $recipients]),
+            $rules,
+            $messages
+        );
+        
+        if ($validator->fails()) {
+            throw new \Illuminate\Validation\ValidationException($validator);
+        }
+        
+        return $validator->validated();
+    }
+    
+    /**
+     * Parse and validate rating configuration
+     */
+    private function parseRatingConfig(Request $request): array
+    {
+        $ratingConfigStr = $request->input('rating_config');
+        $ratingConfig = json_decode($ratingConfigStr, true);
+        
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new \InvalidArgumentException('Invalid rating configuration JSON: ' . json_last_error_msg());
+        }
+        
+        if (!is_array($ratingConfig)) {
+            throw new \InvalidArgumentException('Rating configuration must be an array');
+        }
+        
+        // Validate required fields
+        $this->validateRatingConfigFields($ratingConfig);
+        
+        // Normalize rating config to match bot API format
+        return $this->normalizeRatingConfig($ratingConfig);
+    }
+    
+    /**
+     * Validate rating configuration fields
+     */
+    private function validateRatingConfigFields(array $config): void
+    {
+        $requiredFields = ['rating_type', 'allow_comment', 'allow_skip'];
+        
+        foreach ($requiredFields as $field) {
+            if (!array_key_exists($field, $config)) {
+                throw new \InvalidArgumentException("Rating configuration missing required field: {$field}");
             }
         }
-
-       
-        $validRecipients = collect($recipients)->filter(fn($r) => !empty($r['phone']));
-
-        if ($validRecipients->isEmpty()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No valid recipients found. All recipients must have a phone number.'
-            ], 422);
+        
+        // Validate rating_type value (this is what frontend sends)
+        if (!in_array($config['rating_type'], ['thumbs', 'scale'])) {
+            throw new \InvalidArgumentException('Rating type must be either "thumbs" or "scale"');
         }
-
+        
+        // Validate scale fields if rating type is scale
+        if ($config['rating_type'] === 'scale') {
+            if (!isset($config['scale_min']) || !isset($config['scale_max'])) {
+                throw new \InvalidArgumentException('Scale rating type requires scale_min and scale_max');
+            }
+            
+            $scaleMin = (int)$config['scale_min'];
+            $scaleMax = (int)$config['scale_max'];
+            
+            if ($scaleMin >= $scaleMax) {
+                throw new \InvalidArgumentException('scale_max must be greater than scale_min');
+            }
+            
+            if ($scaleMin < 1 || $scaleMax > 10) {
+                throw new \InvalidArgumentException('Scale values must be between 1 and 10');
+            }
+        }
+    }
+    
+    /**
+     * Normalize rating configuration to match both DB and Bot API format
+     */
+    private function normalizeRatingConfig(array $config): array
+    {
+        $normalized = [
+            'rating_type' => $config['rating_type'], // 'thumbs' or 'scale'
+            'allow_comment' => (bool)$config['allow_comment'],
+            'allow_skip' => (bool)$config['allow_skip'],
+        ];
+        
+        // Only include scale fields if rating type is scale
+        if ($config['rating_type'] === 'scale') {
+            $normalized['scale_min'] = (int)$config['scale_min'];
+            $normalized['scale_max'] = (int)$config['scale_max'];
+        }
+        
+        Log::info('Rating config validated and normalized', [
+            'original' => $config,
+            'normalized' => $normalized
+        ]);
+        
+        return $normalized;
+    }
+    
+    /**
+     * Process file attachments
+     */
+    private function processAttachments(Request $request): array
+    {
+        $attachmentUrls = [];
+        
+        // Only regular messages can have attachments
+        if ($request->input('message_type') === 'rating' || !$request->hasFile('attachments')) {
+            return $attachmentUrls;
+        }
+        
+        foreach ($request->file('attachments') as $file) {
+            try {
+                $path = $file->store('bot-attachments', 'public');
+                
+                $attachmentUrls[] = [
+                    'name' => $file->getClientOriginalName(),
+                    'url' => asset('storage/' . $path),
+                    'type' => $file->getMimeType(),
+                    'size' => $file->getSize(),
+                ];
+                
+                Log::info('Attachment uploaded', [
+                    'path' => $path, 
+                    'name' => $file->getClientOriginalName(),
+                    'size' => $file->getSize()
+                ]);
+                
+            } catch (\Exception $e) {
+                Log::error('Failed to upload attachment', [
+                    'error' => $e->getMessage(),
+                    'file' => $file->getClientOriginalName()
+                ]);
+                
+                throw new \Exception("Failed to upload attachment: {$file->getClientOriginalName()}");
+            }
+        }
+        
+        return $attachmentUrls;
+    }
+    
+    /**
+     * Filter recipients to only include those with phone numbers
+     */
+    private function filterValidRecipients(array $recipients)
+    {
+        return collect($recipients)->filter(function ($recipient) {
+            return !empty($recipient['phone']);
+        });
+    }
+    
+    /**
+     * Create message batch
+     */
+    private function createBatch(Request $request, $validRecipients, ?array $ratingConfig): BotMessageBatch
+    {
         $batchId = 'BOT-' . strtoupper(Str::random(10));
         $messageType = $request->input('message_type', 'regular');
-
-       
-        $ratingConfig = null;
-        if ($messageType === 'rating') {
-            $ratingConfigStr = $request->input('rating_config');
-            if ($ratingConfigStr) {
-                $ratingConfig = json_decode($ratingConfigStr, true);
-            }
-
-          
-            if (!is_array($ratingConfig)) {
-                $ratingConfig = [
-                    'rating_type' => 'thumbs',
-                    'scale_min' => 1,
-                    'scale_max' => 5,
-                    'allow_comment' => false,
-                    'allow_skip' => true,
-                ];
-            }
-
-          
-            if (!in_array($ratingConfig['rating_type'] ?? '', ['thumbs', 'scale'])) {
-                $ratingConfig['rating_type'] = 'thumbs';
-            }
-            if (!isset($ratingConfig['scale_min'])) $ratingConfig['scale_min'] = 1;
-            if (!isset($ratingConfig['scale_max'])) $ratingConfig['scale_max'] = 5;
-            $ratingConfig['allow_comment'] = (bool)($ratingConfig['allow_comment'] ?? false);
-            $ratingConfig['allow_skip'] = (bool)($ratingConfig['allow_skip'] ?? true);
-
-            Log::info('✅ Rating config validated', [
-                'rating_config' => $ratingConfig,
-            ]);
-        }
-
+        
         // Build filters
-        $filters = is_array($request->input('filters')) ? $request->input('filters') : [];
-        $filters['message_type'] = $messageType;
-        if ($ratingConfig) $filters['rating_config'] = $ratingConfig;
-
-        // Create batch
+        $filters = $this->buildFilters($request, $messageType, $ratingConfig);
+        
         $batch = BotMessageBatch::create([
             'batch_id' => $batchId,
             'user_id' => auth()->id(),
@@ -185,73 +367,215 @@ class BotAdminController extends Controller
             'status' => 'processing',
             'filters' => $filters,
         ]);
-
-        Log::info('✅ Batch created', [
+        
+        Log::info('Batch created', [
             'batch_id' => $batchId,
+            'message_type' => $messageType,
+            'recipient_count' => $validRecipients->count(),
             'filters' => $filters,
         ]);
-
-        // Create messages
-        $messageIds = [];
-        foreach ($validRecipients as $recipient) {
-            $messageData = [
-                'batch_id' => $batchId,
-                'user_id' => auth()->id(),
-                'name' => $recipient['name'] ?? null,
-                'phone' => $recipient['phone'],
-                'recipient' => $recipient['email'] ?? null,
-                'message' => $request->input('message'),
-                'attachments' => !empty($attachmentUrls) ? $attachmentUrls : null,
-                'category' => $messageType === 'rating' ? 'rating' : 'bot',
-                'date' => now(),
-                'group_id' => $request->input('filters.group_id') ?? null,
-                'status' => BotMessage::STATUS_QUEUED,
-                'status_message' => 'Queued for sending',
-            ];
-
-            // ⭐ CRITICAL: ADD RATING FIELDS TO MESSAGE
-            if ($messageType === 'rating' && $ratingConfig) {
-                $messageData['is_rating'] = true;
-                $messageData['rating_type'] = $ratingConfig['rating_type'];
-                $messageData['scale_min'] = $ratingConfig['scale_min'];
-                $messageData['scale_max'] = $ratingConfig['scale_max'];
-                $messageData['allow_comment'] = $ratingConfig['allow_comment'];
-                $messageData['allow_skip'] = $ratingConfig['allow_skip'];
-
-                Log::info('⭐ Creating RATING message with data', [
-                    'is_rating' => true,
-                    'rating_type' => $ratingConfig['rating_type'],
-                    'phone' => $recipient['phone'],
-                ]);
+        
+        return $batch;
+    }
+    
+    /**
+     * Build filters array for batch
+     */
+    private function buildFilters(Request $request, string $messageType, ?array $ratingConfig): array
+    {
+        $rawFilters = $request->input('filters');
+        
+        // Handle both string and array formats
+        if (is_string($rawFilters)) {
+            $filters = json_decode($rawFilters, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $filters = [];
             }
-
-            $message = BotMessage::create($messageData);
-            $messageIds[] = $message->id;
+        } else {
+            $filters = (array)$rawFilters;
         }
-
-        Log::info('✅ Messages created', [
+        
+        // Clean up filters - remove empty values
+        $filters = array_filter($filters ?? [], function ($value) {
+            return !is_null($value) && $value !== '';
+        });
+        
+        $filters['message_type'] = $messageType;
+        
+        if ($ratingConfig) {
+            $filters['rating_config'] = $ratingConfig;
+        }
+        
+        return $filters;
+    }
+    
+    /**
+     * Create individual messages for each recipient
+     */
+    private function createMessages(
+        Request $request, 
+        $validRecipients, 
+        BotMessageBatch $batch, 
+        array $attachmentUrls,
+        ?array $ratingConfig
+    ): array {
+        $messageIds = [];
+        $messageType = $request->input('message_type', 'regular');
+        $message = $request->input('message');
+        
+        $filters = is_string($request->input('filters')) 
+            ? json_decode($request->input('filters'), true) 
+            : (array)$request->input('filters', []);
+        
+        foreach ($validRecipients as $recipient) {
+            $messageData = $this->buildMessageData(
+                $batch,
+                $recipient,
+                $message,
+                $attachmentUrls,
+                $messageType,
+                $ratingConfig,
+                $filters
+            );
+            
+            $createdMessage = BotMessage::create($messageData);
+            $messageIds[] = $createdMessage->id;
+            
+            Log::debug('Message created', [
+                'message_id' => $createdMessage->id,
+                'phone' => $recipient['phone'],
+                'is_rating' => $messageType === 'rating',
+            ]);
+        }
+        
+        Log::info('All messages created', [
             'count' => count($messageIds),
             'message_type' => $messageType,
+            'batch_id' => $batch->batch_id,
         ]);
+        
+        return $messageIds;
+    }
+    
+     private function buildMessageData(
+    BotMessageBatch $batch,
+    array $recipient,
+    string $message,
+    array $attachmentUrls,
+    string $messageType,
+    ?array $ratingConfig,
+    array $filters
+): array {
+    $messageData = [
+        'batch_id' => $batch->batch_id,
+        'user_id' => auth()->id(),
+        'name' => $recipient['name'] ?? null,
+        'phone' => $recipient['phone'],
+        'recipient' => $recipient['email'] ?? null,
+        'message' => $message,
+        'attachments' => !empty($attachmentUrls) ? $attachmentUrls : null,
+        'category' => $messageType === 'rating' ? 'rating' : 'bot',
+        'date' => now(),
+        'group_id' => $filters['group_id'] ?? null,
+        'status' => BotMessage::STATUS_QUEUED,
+        'status_message' => 'Queued for sending',
+    ];
 
-        // Dispatch jobs in chunks
-        foreach (array_chunk($messageIds, 100) as $chunk) {
+    // CRITICAL: Add rating-specific fields if this is a rating message
+    if ($messageType === 'rating' && $ratingConfig) {
+        $messageData['is_rating'] = true;
+        $messageData['rating_type'] = $ratingConfig['rating_type'];
+        $messageData['allow_comment'] = (bool)$ratingConfig['allow_comment'];
+        $messageData['allow_skip'] = (bool)$ratingConfig['allow_skip'];
+        
+        // Only add scale fields if rating type is 'scale'
+        if ($ratingConfig['rating_type'] === 'scale') {
+            $messageData['scale_min'] = (int)($ratingConfig['scale_min'] ?? 1);
+            $messageData['scale_max'] = (int)($ratingConfig['scale_max'] ?? 5);
+        } else {
+            // For thumbs rating, set defaults
+            $messageData['scale_min'] = 1;
+            $messageData['scale_max'] = 5;
+        }
+        
+        Log::debug('Rating message data prepared', [
+            'rating_type' => $ratingConfig['rating_type'],
+            'phone' => $recipient['phone'],
+            'has_scale' => isset($ratingConfig['scale_min']),
+            'is_rating' => true,
+            'category' => 'rating',
+        ]);
+    } else {
+        // ✅ FIXED: Set default values instead of null for regular messages
+        $messageData['is_rating'] = false;
+        $messageData['rating_type'] = null;
+        $messageData['scale_min'] = 1;          // Changed from null
+        $messageData['scale_max'] = 5;          // Changed from null
+        $messageData['allow_comment'] = false;  // Changed from null - THIS FIXES YOUR ERROR
+        $messageData['allow_skip'] = false;     // Changed from null
+        
+        Log::debug('Regular message data prepared', [
+            'phone' => $recipient['phone'],
+            'is_rating' => false,
+        ]);
+    }
+    
+    return $messageData;
+}
+    
+    /**
+     * Dispatch jobs to process messages
+     */
+    private function dispatchJobs(array $messageIds): void
+    {
+        $chunkSize = 100;
+        $chunks = array_chunk($messageIds, $chunkSize);
+        
+        foreach ($chunks as $chunk) {
             SendBotMessageBatch::dispatch($chunk)->onQueue('bot-messages');
         }
-
+        
+        Log::info('Jobs dispatched', [
+            'total_messages' => count($messageIds),
+            'chunk_size' => $chunkSize,
+            'total_chunks' => count($chunks),
+        ]);
+    }
+    
+    /**
+     * Return success response
+     */
+    private function successResponse(
+        BotMessageBatch $batch, 
+        $validRecipients, 
+        int $totalRecipients,
+        int $attachmentCount
+    ) {
+        $messageType = $batch->filters['message_type'] ?? 'regular';
+        
         return response()->json([
             'success' => true,
             'message' => $messageType === 'rating'
                 ? 'Rating requests queued successfully'
                 : 'Messages queued successfully',
-            'batch_id' => $batchId,
+            'batch_id' => $batch->batch_id,
             'total_count' => $validRecipients->count(),
-            'skipped_count' => count($recipients) - $validRecipients->count(),
-            'attachments_count' => count($attachmentUrls),
+            'skipped_count' => $totalRecipients - $validRecipients->count(),
+            'attachments_count' => $attachmentCount,
             'message_type' => $messageType,
         ]);
     }
-
+    
+    /**
+     * Return error response
+     */
+    private function errorResponse(string $message, int $statusCode = 422)
+    {
+        return response()->json([
+            'success' => false,
+            'message' => $message,
+        ], $statusCode);
+    }
 
     public function batchDetails($batchId)
     {
@@ -259,11 +583,9 @@ class BotAdminController extends Controller
             ->with(['messages' => fn($q) => $q->orderBy('created_at', 'desc')])
             ->firstOrFail();
 
-        
         $isRatingBatch = isset($batch->filters['message_type']) 
             && $batch->filters['message_type'] === 'rating';
 
-       
         $ratings = [];
         $ratedPhones = [];
         $unratedPhones = [];

@@ -37,10 +37,18 @@ class InvoicePaymentController extends Controller
             ->joinSub($paymentTotals, 'payment_totals', function($join) {
                 $join->on('users.id', '=', 'payment_totals.user_id');
             });
+        $currentUser = auth()->user();
+        $activeProjectId = session('active_project_id') ?? $currentUser->getActiveProjectId();
 
         // Apply county filter
         if ($request->filled('county')) {
             $query->where('users.county_id', $request->county);
+        }
+
+        if ($activeProjectId) {
+            $query->whereHas('projects', function ($q) use ($activeProjectId) {
+                $q->where('projects.id', $activeProjectId);
+            });
         }
 
         // Apply search filter

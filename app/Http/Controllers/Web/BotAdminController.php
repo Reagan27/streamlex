@@ -378,14 +378,11 @@ class BotAdminController extends Controller
         return $batch;
     }
     
-    /**
-     * Build filters array for batch
-     */
-    private function buildFilters(Request $request, string $messageType, ?array $ratingConfig): array
+   
+   private function buildFilters(Request $request, string $messageType, ?array $ratingConfig): array
     {
         $rawFilters = $request->input('filters');
         
-        // Handle both string and array formats
         if (is_string($rawFilters)) {
             $filters = json_decode($rawFilters, true);
             if (json_last_error() !== JSON_ERROR_NONE) {
@@ -395,12 +392,12 @@ class BotAdminController extends Controller
             $filters = (array)$rawFilters;
         }
         
-        // Clean up filters - remove empty values
         $filters = array_filter($filters ?? [], function ($value) {
             return !is_null($value) && $value !== '';
         });
         
         $filters['message_type'] = $messageType;
+        
         
         if ($ratingConfig) {
             $filters['rating_config'] = $ratingConfig;

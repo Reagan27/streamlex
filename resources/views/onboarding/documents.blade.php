@@ -14,7 +14,7 @@
                 <label for="id_number">ID Number</label>
                 <input type="text" class="form-control @error('id_number') is-invalid @enderror" 
                        id="id_number" name="id_number" 
-                       value="{{ old('id_number', $user->documents->id_number ?? '') }}">
+                       value="{{ old('id_number', optional($user->documents->first())->id_number ?? '') }}">
                 @error('id_number')
                     <div class="invalid-feedback">{{ $message }}</div>
                 @enderror
@@ -24,7 +24,7 @@
             <div class="form-group">
                 <label for="id_photo">ID Photo (PDF, JPEG, PNG - Max 2MB)</label>
                 <div class="custom-file">
-                    @if($user->documents && $user->documents->id_photo_path)
+                    @if($user->documents && optional($user->documents->first())->id_photo_path)
                         <div class="mb-2">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="replace_id_photo" 
@@ -33,7 +33,7 @@
                                     Replace existing ID photo
                                 </label>
                             </div>
-                            <small class="text-muted">Current file: {{ basename($user->documents->id_photo_path) }}</small>
+                            <small class="text-muted">Current file: {{ basename(optional($user->documents->first())->id_photo_path) }}</small>
                         </div>
                         <input type="file" class="form-control-file" 
                                id="id_photo" name="id_photo" style="display: none;">
@@ -54,7 +54,7 @@
                 <label for="kra_pin">KRA PIN</label>
                 <input type="text" class="form-control @error('kra_pin') is-invalid @enderror" 
                        id="kra_pin" name="kra_pin" 
-                       value="{{ old('kra_pin', $user->documents->kra_pin ?? '') }}" maxlength="11">
+                       value="{{ old('kra_pin', optional($user->documents->first())->kra_pin ?? '') }}" maxlength="11">
                 @error('kra_pin')
                     <div class="invalid-feedback">{{ $message }}</div>
                 @enderror
@@ -65,7 +65,7 @@
             <div class="form-group">
                 <label for="kra_certificate">KRA Certificate (PDF, JPEG, PNG - Max 2MB)</label>
                 <div class="custom-file">
-                    @if($user->documents && $user->documents->kra_certificate_path)
+                    @if($user->documents && optional($user->documents->first())->kra_certificate_path)
                         <div class="mb-2">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="replace_kra_certificate" 
@@ -74,7 +74,7 @@
                                     Replace existing KRA certificate
                                 </label>
                             </div>
-                            <small class="text-muted">Current file: {{ basename($user->documents->kra_certificate_path) }}</small>
+                            <small class="text-muted">Current file: {{ basename(optional($user->documents->first())->kra_certificate_path) }}</small>
                         </div>
                         <input type="file" class="form-control-file" 
                                id="kra_certificate" name="kra_certificate" style="display: none;">
@@ -87,6 +87,42 @@
                 <div class="progress mt-2" style="display: none;" id="kra_certificate_progress">
                     <div class="progress-bar" role="progressbar" style="width: 0%"></div>
                 </div>
+                <small class="text-muted d-block mt-1">Accepted formats: PDF, JPEG, PNG. Maximum size: 2MB</small>
+            </div>
+
+            {{-- SHIF Number Field (Optional) --}}
+            <div class="form-group">
+                <label for="shif_number">SHIF Number (optional)</label>
+                <input type="text" class="form-control @error('shif_number') is-invalid @enderror" 
+                       id="shif_number" name="shif_number" 
+                       value="{{ old('shif_number', optional($user->documents->first())->shif_number ?? '') }}">
+                @error('shif_number')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+            </div>
+
+            {{-- SHIF Document Upload Field (Optional) --}}
+            <div class="form-group">
+                <label for="shif_document">SHIF Document (PDF, JPEG, PNG - Max 2MB, optional)</label>
+                <input type="file" class="form-control-file" id="shif_document" name="shif_document">
+                <small class="text-muted d-block mt-1">Accepted formats: PDF, JPEG, PNG. Maximum size: 2MB</small>
+            </div>
+
+            {{-- NSSF Number Field (Optional) --}}
+            <div class="form-group">
+                <label for="nssf_number">NSSF Number (optional)</label>
+                <input type="text" class="form-control @error('nssf_number') is-invalid @enderror" 
+                       id="nssf_number" name="nssf_number" 
+                       value="{{ old('nssf_number', optional($user->documents->first())->nssf_number ?? '') }}">
+                @error('nssf_number')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+            </div>
+
+            {{-- NSSF Document Upload Field (Optional) --}}
+            <div class="form-group">
+                <label for="nssf_document">NSSF Document (PDF, JPEG, PNG - Max 2MB, optional)</label>
+                <input type="file" class="form-control-file" id="nssf_document" name="nssf_document">
                 <small class="text-muted d-block mt-1">Accepted formats: PDF, JPEG, PNG. Maximum size: 2MB</small>
             </div>
 

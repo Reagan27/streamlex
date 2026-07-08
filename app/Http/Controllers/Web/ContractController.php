@@ -1,5 +1,4 @@
 <?php
-
 namespace Vanguard\Http\Controllers\Web;
 
 use Carbon\Carbon;
@@ -21,11 +20,10 @@ use Vanguard\Services\RoleHierarchyService;
 use Vanguard\User;
 use Vanguard\UserContractSignature;
 use Vanguard\Projects;
-use Vanguard\Contract; 
+use Vanguard\Contract;
 
 class ContractController extends Controller
 {
-
     protected $contractPdfService;
 
     public function __construct(ContractPdfService $contractPdfService)
@@ -33,408 +31,417 @@ class ContractController extends Controller
         $this->contractPdfService = $contractPdfService;
     }
 
-
-public function index(Request $request)
+    public function show(AdminContract $contract)
     {
-        $currentUser = Auth::user();
+        return view('contracts.show', compact('contract'));
+    }
 
-        $query = UserContractSignature::with(['user.role', 'user.county', 'contract']);
+    public function contractsList(Request $request)
+    {
+        $currentUser = auth()->user();
+        $query = AdminContract::query()->where('status', '!=', 'draft');
 
-        // Search by user name/email/phone
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->whereHas('user', function ($q) use ($search) {
-                $q->where('first_name', 'like', "%{$search}%")
-                  ->orWhere('last_name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%");
+        if (!$currentUser->hasRole(['Admin', 'Manager'])) {
+            $roleHierarchyService = app(RoleHierarchyService::class);
+            $subordinateRoles = $roleHierarchyService->getAllSubordinateRoles($currentUser->role->name);
+
+            $query->whereIn('role_id', function ($sub) use ($subordinateRoles) {
+                $sub->select('id')
+                    ->from('roles')
+                    ->whereIn('name', $subordinateRoles);
+            });
+
+            if ($currentUser->role && $currentUser->role->name === 'Regional_Coordinator') {
+                $assignedCountyIds = $currentUser->counties
+                    ? $currentUser->counties->pluck('id')->toArray()
+                    : [];
+                $query->whereHas('counties', function ($q) use ($assignedCountyIds) {
+                    $q->whereIn('counties.id', $assignedCountyIds);
+                });
+            } else {
+                $query->whereHas('counties', function ($q) use ($currentUser) {
+                    $q->where('counties.id', $currentUser->county_id);
+                });
+            }
+        }
+
+        if ($request->filled('county')) {
+            $countyId = $request->input('county');
+            $query->whereHas('counties', function ($q) use ($countyId) {
+                $q->where('counties.id', $countyId);
             });
         }
 
-        // County filter
-        if ($request->filled('county')) {
-            $query->whereHas('user', fn($q) => $q->where('county_id', $request->county));
-        }
-
-        // Role filter
-        if ($request->filled('role')) {
-            $query->whereHas('user', fn($q) => $q->where('role_id', $request->role));
-        }
-
-        // Status filter
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        // Date range filter (example — adjust as needed)
-        if ($request->filled('date_range')) {
-            $range = $request->date_range;
-            $now = Carbon::now();
-
-            if ($range === 'today') {
-                $query->whereDate('created_at', $now->format('Y-m-d'));
-            } elseif ($range === 'week') {
-                $query->whereBetween('created_at', [$now->startOfWeek(), $now->endOfWeek()]);
-            } elseif ($range === 'month') {
-                $query->whereMonth('created_at', $now->month);
-            } elseif ($range === 'year') {
-                $query->whereYear('created_at', $now->year);
-            }
-        }
-
-        // PROJECT FILTER — now works perfectly!
         if ($request->filled('project_id')) {
-            $projectId = (int) $request->project_id;
+            $query->where('project_id', $request->input('project_id'));
+        }
 
-            // Only apply for users who can see multiple projects
-            if (
-                $currentUser->isAdmin() ||
-                $currentUser->hasRole('Manager') ||
-                $currentUser->hasRole('Finance') ||
-                in_array($currentUser->role->name, ['Regional_Coordinator', 'County_Coordinator'])
-            ) {
-                $query->where('project_id', $projectId);
+        if ($request->filled('role')) {
+            $query->where('role_id', $request->input('role'));
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+
+        if ($request->filled('search')) {
+                $search = $request->input('search');
+                $query->where(function ($q) use ($search) {
+                    $q->where('title', 'like', "%{$search}%")
+                    ->orWhere('status', 'like', "%{$search}%")
+                    ->orWhereHas('userContractSignatures.user', function ($uq) use ($search) {
+                        $uq->where('first_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%")
+                            ->orWhere('email', 'like', "%{$search}%");
+                    });
+                });
+            }
+
+        if ($request->filled('date_range')) {
+            $dates = explode(' to ', $request->input('date_range'));
+            if (count($dates) === 2) {
+                $query->whereBetween('start_date', [$dates[0], $dates[1]]);
             }
         }
 
-        $contracts = $query->paginate(20);
+        $contracts = $query
+            ->with(['userContractSignatures' => function ($q) {
+                $q->whereIn('status', ['approved', 'accepted', 'declined', 'terminated', 'inactive'])
+                  ->with('user.role', 'user.county');
+            }])
+            ->orderByDesc('created_at')
+            ->paginate(20)
+            ->withQueryString();
 
-        // Pass data for filters
         $counties = County::orderBy('name')->get();
-        $roles = Role::all();
+        $roles    = Role::orderBy('display_name')->get();
+        $projects = Projects::orderBy('name')->get();
 
-        return view('contracts.list', compact('contracts', 'counties', 'roles'));
+        return view('contractsList.index', compact('contracts', 'counties', 'roles', 'projects'));
     }
-    
-    // public function update(Request $request, AdminContract $contract)
-    // {
-    //     $validatedData = $request->validate([
-    //         'title' => 'required|string|max:255',
-    //         'start_date' => 'required|date',
-    //         'number_of_days' => 'required|integer',
-    //         'description' => 'required|string',
-    //         'role_id' => 'required|exists:roles,id',
-    //         'counties' => 'required|array',
-    //         'counties.*' => 'exists:counties,id',
-    //         'status' => 'required|in:draft,published,dropped',
-    //         'authority_name' => 'required|string|max:255',
-    //         'authority_designation' => 'required|string|max:255',
-    //         'authority_signature' => 'required|string',
-    //         'change_reason' => 'required|string',
-    //     ]);
-    
-    //     try {
-    //         DB::beginTransaction();
-    
-    //         // Save previous state for version tracking
-    //         $oldState = $contract->toArray();
-    
-    //         // Update basic contract info
-    //         $contract->title = $validatedData['title'];
-    //         $contract->start_date = $validatedData['start_date'];
-    //         $contract->number_of_days = $validatedData['number_of_days'];
-    //         $contract->description = $validatedData['description'];
-    //         $contract->role_id = $validatedData['role_id'];
-    //         $contract->status = $validatedData['status'];
-    //         $contract->authority_name = $validatedData['authority_name'];
-    //         $contract->authority_designation = $validatedData['authority_designation'];
-    //         $contract->authority_signature = $validatedData['authority_signature'];
-    //         $contract->active_for_onboarding = $request->has('active_for_onboarding');
-            
-    //         $contract->save();
-    
-    //         // Create version record
-    //         ContractVersion::create([
-    //             'contract_id' => $contract->id,
-    //             'status' => $contract->status,
-    //             'description' => $contract->description,
-    //             'authority_signature' => $contract->authority_signature,
-    //             'authority_name' => $contract->authority_name,
-    //             'authority_designation' => $contract->authority_designation,
-    //             'change_reason' => $validatedData['change_reason'],
-    //             'changed_by' => auth()->id()
-    //         ]);
-    
-    //         // Sync counties
-    //         $contract->counties()->sync($request->input('counties', []));
-    
-    //         DB::commit();
-    //         return redirect()->route('contracts.index')
-    //             ->with('success', 'Contract updated successfully.');
-    
-    //     } catch (\Exception $e) {
-    //         DB::rollBack();
-    //         \Log::error('Contract update failed', [
-    //             'error' => $e->getMessage(),
-    //             'trace' => $e->getTraceAsString()
-    //         ]);
-    //         return back()->withInput()
-    //             ->with('error', 'Failed to update contract: ' . $e->getMessage());
-    //     }
-    // }
 
+    public function index(Request $request)
+    {
+        $query = AdminContract::query()->where('status', '!=', 'draft');
 
-    // public function store(Request $request)
-    // {
-    //     $validatedData = $request->validate([
-    //         'title' => 'required|string|max:255',
-    //         'start_date' => 'required|date',
-    //         'number_of_days' => 'required|integer',
-    //         'description' => 'required|string',
-    //         'role_id' => 'required|exists:roles,id',
-    //         'counties' => 'required|array',
-    //         'counties.*' => 'exists:counties,id',
-    //         'status' => 'required|in:draft,published,dropped',
-    //         'authority_name' => 'required|string|max:255',
-    //         'authority_designation' => 'required|string|max:255',
-    //         'authority_signature' => 'required|string',
-    //     ]);
-    
-    //     try {
-    //         DB::beginTransaction();
-    
-    //         // Create contract
-    //         $contract = AdminContract::create([
-    //             'title' => $validatedData['title'],
-    //             'start_date' => $validatedData['start_date'],
-    //             'number_of_days' => $validatedData['number_of_days'],
-    //             'description' => $validatedData['description'],
-    //             'role_id' => $validatedData['role_id'],
-    //             'status' => $validatedData['status'],
-    //             'authority_name' => $validatedData['authority_name'],
-    //             'authority_designation' => $validatedData['authority_designation'],
-    //             'authority_signature' => $validatedData['authority_signature'],
-    //             'active_for_onboarding' => $request->has('active_for_onboarding')
-    //         ]);
-    
-    //         // Create initial version
-    //         ContractVersion::create([
-    //             'contract_id' => $contract->id,
-    //             'status' => $contract->status,
-    //             'description' => $contract->description,
-    //             'authority_signature' => $contract->authority_signature,
-    //             'authority_name' => $contract->authority_name,
-    //             'authority_designation' => $contract->authority_designation,
-    //             'change_reason' => 'Initial contract creation',
-    //             'changed_by' => auth()->id()
-    //         ]);
-    
-    //         // Sync counties
-    //         $contract->counties()->sync($request->input('counties', []));
-    
-    //         DB::commit();
-    //         return redirect()->route('contracts.index')
-    //             ->with('success', 'Contract created successfully.');
-    
-    //     } catch (\Exception $e) {
-    //         DB::rollBack();
-    //         \Log::error('Contract creation failed', [
-    //             'error' => $e->getMessage(),
-    //             'trace' => $e->getTraceAsString()
-    //         ]);
-    //         return back()->withInput()
-    //             ->with('error', 'Failed to create contract: ' . $e->getMessage());
-    //     }
-    // }
-public function store(Request $request)
-{
-    $validatedData = $request->validate([
-        'title'               => 'required|string|max:255',
-        'start_date'          => 'required|date',
-        'number_of_days'      => 'required|integer',
-        'description'         => 'required|string',
-        'role_id'             => 'required|exists:roles,id',
-        'counties'            => 'required|array',
-        'counties.*'          => 'exists:counties,id',
-        'status'              => 'required|in:draft,published,dropped',
-        'authority_name'      => 'required|string|max:255',
-        'authority_designation'=> 'required|string|max:255',
-        'authority_signature' => 'required|string',
-        'project_id'          => 'required|exists:projects,id', // ← NEW VALIDATION
-    ]);
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where('title', 'like', "%$search%");
+        }
 
-    try {
-        DB::beginTransaction();
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
 
-        $endDate = $this->getEndDate($validatedData['start_date'], $validatedData['number_of_days']);
+        $contracts = $query->orderByDesc('created_at')->get()->map(function ($contract) {
+            if ($contract->end_date) {
+                $days = now()->startOfDay()->diffInDays(Carbon::parse($contract->end_date)->endOfDay(), false);
+                $contract->remaining_days = $days < 0 ? 'Expired' : (int)$days;
+            } else {
+                $contract->remaining_days = null;
+            }
+            $contract->start_date = $contract->start_date
+                ? Carbon::parse($contract->start_date)
+                : null;
+            return $contract;
+        });
 
-        $contract = AdminContract::create([
-            'title'                => $validatedData['title'],
-            'start_date'           => $validatedData['start_date'],
-            'end_date'             => $endDate,
-            'number_of_days'       => $validatedData['number_of_days'],
-            'description'          => $validatedData['description'],
-            'role_id'              => $validatedData['role_id'],
-            'status'               => $validatedData['status'],
-            'authority_name'       => $validatedData['authority_name'],
-            'authority_designation'=> $validatedData['authority_designation'],
-            'authority_signature'  => $validatedData['authority_signature'],
-            'active_for_onboarding'=> $request->has('active_for_onboarding'),
-            'project_id'           => $validatedData['project_id'], // ← SAVE PROJECT
-        ]);
-
-        ContractVersion::create([
-            'contract_id' => $contract->id,
-            'status' => $contract->status,
-            'description' => $contract->description,
-            'authority_signature' => $contract->authority_signature,
-            'authority_name' => $contract->authority_name,
-            'authority_designation' => $contract->authority_designation,
-            'change_reason' => 'Initial contract creation',
-            'changed_by' => auth()->id(),
-            'project_id' => $contract->project_id, // optional: copy to version
-        ]);
-
-        $contract->counties()->sync($request->input('counties', []));
-
-        DB::commit();
-
-        return redirect()->route('contracts.index')
-            ->with('success', 'Contract created successfully.');
-    } catch (\Exception $e) {
-        DB::rollBack();
-        \Log::error('Contract creation failed', [
-            'error' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ]);
-        return back()->withInput()
-            ->with('error', 'Failed to create contract: ' . $e->getMessage());
+        return view('contracts.index', compact('contracts'));
     }
-}
 
-public function update(Request $request, AdminContract $contract)
-{
-    $validatedData = $request->validate([
-        'title' => 'required|string|max:255',
-        'start_date' => 'required|date',
-        'number_of_days' => 'required|integer',
-        'description' => 'required|string',
-        'role_id' => 'required|exists:roles,id',
-        'counties' => 'required|array',
-        'counties.*' => 'exists:counties,id',
-        'status' => 'required|in:draft,published,dropped',
-        'authority_name' => 'required|string|max:255',
-        'authority_designation' => 'required|string|max:255',
-        'authority_signature' => 'required|string',
-        'change_reason' => 'required|string',
-    ]);
+    public function store(Request $request)
+    {
+        $category = $request->input('contract_category', 'group');
 
-    try {
-        DB::beginTransaction();
-
-        $oldState = $contract->toArray();
-        
-        // Calculate new end date accounting for Sundays
-        $endDate = $this->getEndDate($validatedData['start_date'], $validatedData['number_of_days']);
-
-        $contract->title = $validatedData['title'];
-        $contract->start_date = $validatedData['start_date'];
-        $contract->end_date = $endDate;
-        $contract->number_of_days = $validatedData['number_of_days'];
-        $contract->description = $validatedData['description'];
-        $contract->role_id = $validatedData['role_id'];
-        $contract->status = $validatedData['status'];
-        $contract->authority_name = $validatedData['authority_name'];
-        $contract->authority_designation = $validatedData['authority_designation'];
-        $contract->authority_signature = $validatedData['authority_signature'];
-        $contract->active_for_onboarding = $request->has('active_for_onboarding');
-        
-        $contract->save();
-
-        ContractVersion::create([
-            'contract_id' => $contract->id,
-            'status' => $contract->status,
-            'description' => $contract->description,
-            'authority_signature' => $contract->authority_signature,
-            'authority_name' => $contract->authority_name,
-            'authority_designation' => $contract->authority_designation,
-            'change_reason' => $validatedData['change_reason'],
-            'changed_by' => auth()->id()
-        ]);
-
-        $contract->counties()->sync($request->input('counties', []));
-
-        DB::commit();
-        return redirect()->route('contracts.index')
-            ->with('success', 'Contract updated successfully.');
-
-    } catch (\Exception $e) {
-        DB::rollBack();
-        \Log::error('Contract update failed', [
-            'error' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ]);
-        return back()->withInput()
-            ->with('error', 'Failed to update contract: ' . $e->getMessage());
-    }
-}
-
-
-public function checkContractStatus(User $user)
-{
-    $currentContract = UserContractSignature::where('user_id', $user->id)
-        ->latest()
-        ->first();
-
-    if ($currentContract) {
-        $adminContract = AdminContract::with('counties')
-            ->find($currentContract->contract_id);
-        
-        if (!$adminContract) {
-            $currentContract->update([
-                'status' => 'inactive',
-                'completion_reason' => 'Contract no longer exists',
-                'completion_date' => now()
+        if ($category === 'individual') {
+            $validatedData = $request->validate([
+                'title'                => 'required|string|max:255',
+                'ind_start_date'       => 'required|date',
+                'ind_end_date'         => 'required|date|after_or_equal:ind_start_date',
+                'ind_number_of_days'   => 'required|integer',
+                'description'          => 'required|string',
+                'user_id'              => 'required|exists:users,id',
+                'engagement_type'      => 'required|string',
+                'duration_type'        => 'required|string',
+                'status'               => 'required|in:draft,published,dropped,inactive',
+                'authority_name'       => 'required|string|max:255',
+                'authority_designation'=> 'required|string|max:255',
+                'authority_signature'  => 'required|string',
+                'project_id'           => 'nullable|exists:projects,id',
             ]);
-            
-            return [
-                'active' => false,
-                'reason' => 'contract_not_found'
-            ];
+
+            try {
+                DB::beginTransaction();
+
+                $user = User::firstOrCreate(
+                    ['id' => $validatedData['user_id']],
+                    [
+                        'first_name' => $request->input('user_first_name', 'Default'),
+                        'last_name'  => $request->input('user_last_name', 'User'),
+                        'email'      => $request->input('user_email', 'default@example.com'),
+                        'password'   => bcrypt('password'),
+                    ]
+                );
+
+                $calculatedEndDate = Carbon::parse($validatedData['ind_start_date'])
+                    ->addDays($validatedData['ind_number_of_days'] - 1);
+
+                $contractData = [
+                    'contract_category'    => 'individual',
+                    'title'                => $validatedData['title'],
+                    'start_date'           => $validatedData['ind_start_date'],
+                    'end_date'             => $calculatedEndDate->toDateString(),
+                    'number_of_days'       => $validatedData['ind_number_of_days'],
+                    'description'          => $validatedData['description'],
+                    'user_id'              => $user->id,
+                    'engagement_type'      => $validatedData['engagement_type'],
+                    'duration_type'        => $validatedData['duration_type'],
+                    'status'               => $validatedData['status'],
+                    'authority_name'       => $validatedData['authority_name'],
+                    'authority_designation'=> $validatedData['authority_designation'],
+                    'authority_signature'  => $validatedData['authority_signature'],
+                    'active_for_onboarding'=> $request->has('active_for_onboarding'),
+                    'project_id'           => $validatedData['project_id'],
+                ];
+
+                $contract = AdminContract::create($contractData);
+
+                ContractVersion::create([
+                    'contract_id'          => $contract->id,
+                    'status'               => $contract->status,
+                    'description'          => $contract->description,
+                    'authority_signature'  => $contract->authority_signature,
+                    'authority_name'       => $contract->authority_name,
+                    'authority_designation'=> $contract->authority_designation,
+                    'changed_by'           => auth()->id(),
+                ]);
+
+                DB::commit();
+                return redirect()->route('contracts.index')
+                    ->with('success', 'Contract created successfully.');
+            } catch (\Exception $e) {
+                DB::rollBack();
+                \Log::error('Contract creation failed', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+                return back()->withInput()
+                    ->with('error', 'Failed to create contract: ' . $e->getMessage());
+            }
+
+        } else {
+            $validatedData = $request->validate([
+                'title'                => 'required|string|max:255',
+                'start_date'           => 'required|date',
+                'number_of_days'       => 'required|integer',
+                'description'          => 'required|string',
+                'role_id'              => 'required|exists:roles,id',
+                'counties'             => 'required|array',
+                'counties.*'           => 'exists:counties,id',
+                'status'               => 'required|in:draft,published,dropped,inactive',
+                'authority_name'       => 'required|string|max:255',
+                'authority_designation'=> 'required|string|max:255',
+                'authority_signature'  => 'required|string',
+                'project_id'           => 'nullable|exists:projects,id',
+            ]);
+
+            try {
+                DB::beginTransaction();
+
+                $endDate  = $this->getEndDate($validatedData['start_date'], $validatedData['number_of_days']);
+                $contract = AdminContract::create([
+                    'contract_category'    => 'group',
+                    'title'                => $validatedData['title'],
+                    'start_date'           => $validatedData['start_date'],
+                    'end_date'             => $endDate,
+                    'number_of_days'       => $validatedData['number_of_days'],
+                    'description'          => $validatedData['description'],
+                    'role_id'              => $validatedData['role_id'],
+                    'status'               => $validatedData['status'],
+                    'authority_name'       => $validatedData['authority_name'],
+                    'authority_designation'=> $validatedData['authority_designation'],
+                    'authority_signature'  => $validatedData['authority_signature'],
+                    'active_for_onboarding'=> $request->has('active_for_onboarding'),
+                    'project_id'           => $validatedData['project_id'],
+                ]);
+
+                ContractVersion::create([
+                    'contract_id'          => $contract->id,
+                    'status'               => $contract->status,
+                    'description'          => $contract->description,
+                    'authority_signature'  => $contract->authority_signature,
+                    'authority_name'       => $contract->authority_name,
+                    'authority_designation'=> $contract->authority_designation,
+                    'change_reason'        => 'Initial contract creation',
+                    'changed_by'           => auth()->id(),
+                    'project_id'           => $contract->project_id,
+                ]);
+
+                $contract->counties()->sync($request->input('counties', []));
+
+                DB::commit();
+                return redirect()->route('contracts.index')
+                    ->with('success', 'Contract created successfully.');
+            } catch (\Exception $e) {
+                DB::rollBack();
+                \Log::error('Contract creation failed', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+                return back()->withInput()
+                    ->with('error', 'Failed to create contract: ' . $e->getMessage());
+            }
         }
-        if (in_array($currentContract->status, ['terminated', 'expired', 'inactive'])) {
-            return [
-                'active' => false,
-                'reason' => $currentContract->status
-            ];
+    }
+
+    public function update(Request $request, AdminContract $contract)
+    {
+        $validatedData = [];
+
+        if ($request->input('contract_category') === 'individual') {
+            $validatedData = $request->validate([
+                'user_id'              => 'required|exists:users,id',
+                'engagement_type'      => 'required|string',
+                'duration_type'        => 'required|string',
+                'duration_amount'      => 'required|integer|min:1',
+                'start_date'           => 'required|date',
+                'end_date'             => 'nullable|date|after_or_equal:start_date',
+                'description'          => 'required|string',
+                'status'               => 'required|in:draft,published,dropped',
+                'authority_name'       => 'required|string|max:255',
+                'authority_designation'=> 'required|string|max:255',
+                'authority_signature'  => 'required|string',
+                'change_reason'        => 'required|string',
+                'project_id'           => 'nullable|exists:projects,id',
+            ]);
+
+            $endDate = $this->getEndDate($validatedData['start_date'], $validatedData['duration_amount']);
+
+            $contract->update([
+                'user_id'               => $validatedData['user_id'],
+                'engagement_type'       => $validatedData['engagement_type'],
+                'duration_type'         => $validatedData['duration_type'],
+                'number_of_days'        => $validatedData['duration_amount'],
+                'start_date'            => $validatedData['start_date'],
+                'end_date'              => $validatedData['end_date'] ?? $endDate,
+                'description'           => $validatedData['description'],
+                'status'                => $validatedData['status'],
+                'authority_name'        => $validatedData['authority_name'],
+                'authority_designation' => $validatedData['authority_designation'],
+                'authority_signature'   => $validatedData['authority_signature'],
+                'project_id'            => $validatedData['project_id'],
+                'active_for_onboarding' => $request->has('active_for_onboarding'),
+            ]);
+
+        } else {
+            $validatedData = $request->validate([
+                'role_id'               => 'required|exists:roles,id',
+                'counties'              => 'required|array',
+                'counties.*'            => 'exists:counties,id',
+                'start_date'            => 'required|date',
+                'duration_amount'       => 'required|integer',
+                'duration_type'         => 'required|string',
+                'description'           => 'required|string',
+                'status'                => 'required|in:draft,published,dropped',
+                'authority_name'        => 'required|string|max:255',
+                'authority_designation' => 'required|string|max:255',
+                'authority_signature'   => 'required|string',
+                'change_reason'         => 'required|string',
+                'project_id'            => 'nullable|exists:projects,id',
+            ]);
+
+            $endDate = $this->getEndDate($validatedData['start_date'], $validatedData['duration_amount']);
+
+            $contract->update([
+                'role_id'               => $validatedData['role_id'],
+                'start_date'            => $validatedData['start_date'],
+                'end_date'              => $endDate,
+                'number_of_days'        => $validatedData['duration_amount'],
+                'duration_type'         => $validatedData['duration_type'],
+                'description'           => $validatedData['description'],
+                'status'                => $validatedData['status'],
+                'authority_name'        => $validatedData['authority_name'],
+                'authority_designation' => $validatedData['authority_designation'],
+                'authority_signature'   => $validatedData['authority_signature'],
+                'project_id'            => $validatedData['project_id'],
+                'active_for_onboarding' => $request->has('active_for_onboarding'),
+            ]);
+
+            $contract->counties()->sync($validatedData['counties']);
         }
+
+        ContractVersion::create([
+            'contract_id'          => $contract->id,
+            'status'               => $contract->status,
+            'description'          => $contract->description,
+            'authority_signature'  => $contract->authority_signature,
+            'authority_name'       => $contract->authority_name,
+            'authority_designation'=> $contract->authority_designation,
+            'change_reason'        => $validatedData['change_reason'],
+            'changed_by'           => auth()->id(),
+        ]);
+
+        return redirect()->route('contracts.index')->with('success', 'Contract updated successfully.');
     }
 
-    return ['active' => true];
-}
-    
-private function calculateRemainingDays($contract)
-{
-    if (!$contract->start_date) {
-        return 'N/A';
-    }
-    
-    $startDate = Carbon::parse($contract->start_date);
-    $endDate = $this->getEndDate($startDate, $contract->number_of_days);
-    $today = Carbon::now();
+    public function checkContractStatus(User $user)
+    {
+        $currentContract = UserContractSignature::where('user_id', $user->id)
+            ->latest()
+            ->first();
 
-    if ($today > $endDate) {
-        return 'Expired';
-    }
+        if ($currentContract) {
+            $adminContract = AdminContract::with('counties')
+                ->find($currentContract->contract_id);
 
-    // Count working days between today and end date
-    $remainingDays = 0;
-    $currentDate = Carbon::now();
-    
-    while ($currentDate->lt($endDate)) {
-        if ($currentDate->dayOfWeek !== Carbon::SUNDAY) {
-            $remainingDays++;
+            if (!$adminContract) {
+                $currentContract->update([
+                    'status'            => 'inactive',
+                    'completion_reason' => 'Contract no longer exists',
+                    'completion_date'   => now()
+                ]);
+                return ['active' => false, 'reason' => 'contract_not_found'];
+            }
+
+            if (in_array($currentContract->status, ['terminated', 'expired', 'inactive'])) {
+                return ['active' => false, 'reason' => $currentContract->status];
+            }
         }
-        $currentDate->addDay();
+
+        return ['active' => true];
     }
 
-    return $remainingDays;
-}
+    private function calculateRemainingDays($contract)
+    {
+        if (!$contract->start_date) {
+            return 'N/A';
+        }
+
+        $startDate = Carbon::parse($contract->start_date);
+        $endDate   = $this->getEndDate($startDate, $contract->number_of_days);
+        $today     = Carbon::now();
+
+        if ($today > $endDate) {
+            return 'Expired';
+        }
+
+        $remainingDays = 0;
+        $currentDate   = Carbon::now();
+
+        while ($currentDate->lt($endDate)) {
+            if ($currentDate->dayOfWeek !== Carbon::SUNDAY) {
+                $remainingDays++;
+            }
+            $currentDate->addDay();
+        }
+
+        return $remainingDays;
+    }
 
     public function getDashboardStats()
     {
-        $contracts = AdminContract::all();
-        $activeContracts = 0;
+        $contracts        = AdminContract::all();
+        $activeContracts  = 0;
         $expiredContracts = 0;
 
         foreach ($contracts as $contract) {
@@ -447,201 +454,112 @@ private function calculateRemainingDays($contract)
         }
 
         return [
-            'activeContracts' => $activeContracts,
+            'activeContracts'  => $activeContracts,
             'expiredContracts' => $expiredContracts,
         ];
     }
 
-    public function contractsList(Request $request)
-    {
-        $currentUser = auth()->user();
-        
-        // Initialize the query with all necessary relationships
-        $query = UserContractSignature::with([
-            'user.role', 
-            'user.county',
-            'contract'
-        ])->whereIn('status', ['approved', 'accepted', 'declined', 'terminated', 'inactive']);
-    
-        // Apply role-based access control
-        if (!$currentUser->hasRole(['Admin', 'Manager'])) {
-            $this->applyRoleBasedFilters($query, $currentUser);
-        }
-    
-        // Apply search filters
-        if ($request->filled('search')) {
-            $this->applySearchFilter($query, $request->input('search'));
-        }
-    
-        // Apply status filter
-        if ($request->filled('status')) {
-            $query->where('status', $request->input('status'));
-        }
-    
-        // Apply county filter
-        if ($request->filled('county')) {
-            $query->whereHas('user', function($q) use ($request) {
-                $q->where('county_id', $request->input('county'));
-            });
-        }
-    
-        // Apply role filter
-        if ($request->filled('role')) {
-            $query->whereHas('user', function($q) use ($request) {
-                $q->where('role_id', $request->input('role'));
-            });
-        }
-    
-        // Apply date range filter
-        if ($request->filled('date_range')) {
-            $this->applyDateRangeFilter($query, $request->input('date_range'));
-        }
-    
-        // Get paginated results
-        $contracts = $query->latest()->paginate(20)->withQueryString();
-    
-        // Get filter options
-        $counties = County::orderBy('name')->get();
-        $roles = Role::orderBy('display_name')->get();
-    
-        return view('contractsList.index', compact('contracts', 'counties', 'roles'));
-    }
-    
-    /**
-     * Apply role-based access filters to the query
-     */
     private function applyRoleBasedFilters($query, $currentUser)
     {
         $roleHierarchyService = app(RoleHierarchyService::class);
-        $subordinateRoles = $roleHierarchyService->getAllSubordinateRoles($currentUser->role->name);
-    
-        $query->whereHas('user', function ($q) use ($currentUser, $subordinateRoles) {
-            $q->whereIn('role_id', function ($subQuery) use ($subordinateRoles) {
-                $subQuery->select('id')
-                    ->from('roles')
-                    ->whereIn('name', $subordinateRoles);
-            });
-    
-            // County-based filtering
-            if ($currentUser->role->name === 'Regional_Coordinator') {
-                $assignedCountyIds = $currentUser->counties->pluck('id')->toArray();
-                $q->whereIn('county_id', $assignedCountyIds);
-            } else {
-                $q->where('county_id', $currentUser->county_id);
-            }
+        $subordinateRoles     = $roleHierarchyService->getAllSubordinateRoles($currentUser->role->name);
+
+        $query->whereIn('role_id', function ($sub) use ($subordinateRoles) {
+            $sub->select('id')
+                ->from('roles')
+                ->whereIn('name', $subordinateRoles);
         });
-    }
-    
-    /**
-     * Apply search filter to the query
-     */
-    private function applySearchFilter($query, $searchTerm)
-    {
-        $query->whereHas('user', function ($q) use ($searchTerm) {
-            $q->where(function($inner) use ($searchTerm) {
-                $inner->where('first_name', 'like', "%{$searchTerm}%")
-                      ->orWhere('last_name', 'like', "%{$searchTerm}%")
-                      ->orWhere('email', 'like', "%{$searchTerm}%");
+
+        if ($currentUser->role->name === 'Regional_Coordinator') {
+            $assignedCountyIds = $currentUser->counties->pluck('id')->toArray();
+            $query->whereHas('counties', function ($q) use ($assignedCountyIds) {
+                $q->whereIn('counties.id', $assignedCountyIds);
             });
-        })->orWhereHas('contract', function($q) use ($searchTerm) {
-            $q->where('title', 'like', "%{$searchTerm}%");
-        });
-    }
-    
-    /**
-     * Apply date range filter to the query
-     */
-    private function applyDateRangeFilter($query, $dateRange)
-    {
-        $now = now();
-        
-        switch ($dateRange) {
-            case 'today':
-                $query->whereDate('created_at', $now->toDateString());
-                break;
-            case 'week':
-                $query->whereBetween('created_at', [
-                    $now->startOfWeek()->toDateTimeString(),
-                    $now->endOfWeek()->toDateTimeString()
-                ]);
-                break;
-            case 'month':
-                $query->whereMonth('created_at', $now->month)
-                      ->whereYear('created_at', $now->year);
-                break;
-            case 'year':
-                $query->whereYear('created_at', $now->year);
-                break;
+        } else {
+            $query->whereHas('counties', function ($q) use ($currentUser) {
+                $q->where('counties.id', $currentUser->county_id);
+            });
         }
     }
 
     public function viewContract($id)
     {
         try {
-            $contractSignature = UserContractSignature::findOrFail($id);
-            Log::info('Contract signature found', [
-                'id' => $id, 
-                'user_id' => $contractSignature->user_id,
-                'contract_id' => $contractSignature->contract_id
-            ]);
-    
-            // Pass the contract signature to ensure correct contract is used
-            $pdfContent = $this->contractPdfService->generateContract($contractSignature->user, $contractSignature);
-    
-            return response($pdfContent)
-                ->header('Content-Type', 'application/pdf')
-                ->header('Content-Disposition', 'inline; filename="contract.pdf"');
+            $contractSignature = UserContractSignature::find($id);
+
+            if ($contractSignature && $contractSignature->signature) {
+                $contract = $contractSignature->contract;
+
+                if (!$contract || $contract->status !== AdminContract::STATUS_PUBLISHED) {
+                    Log::warning('Attempt to view contract with non-published status', [
+                        'id'              => $id,
+                        'contract_id'     => $contract ? $contract->id : null,
+                        'contract_status' => $contract ? $contract->status : null
+                    ]);
+                    return response()->view('errors.404', ['message' => 'Contract not available.'], 404);
+                }
+
+                $consultantUser = $contractSignature->user;
+                Log::info('Contract signature found and will be used for PDF', [
+                    'id'          => $id,
+                    'user_id'     => $consultantUser->id,
+                    'contract_id' => $contractSignature->contract_id
+                ]);
+
+                $pdfContent = $this->contractPdfService->generateContract($consultantUser, $contractSignature);
+                return response($pdfContent)
+                    ->header('Content-Type', 'application/pdf')
+                    ->header('Content-Disposition', 'inline; filename="contract.pdf"');
+            } else {
+                Log::warning('Attempt to view contract without valid signature', ['id' => $id]);
+                return response()->view('errors.404', ['message' => 'No valid contract signature found for this contract.'], 404);
+            }
         } catch (ModelNotFoundException $e) {
             Log::error('Contract not found', ['id' => $id, 'error' => $e->getMessage()]);
             return response()->view('errors.404', ['message' => 'Contract not found'], 404);
         } catch (\Exception $e) {
             Log::error('Error in viewContract', [
-                'id' => $id,
+                'id'    => $id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
             return response()->view('errors.500', [
                 'message' => 'An error occurred while generating the contract. Please try again later.'
             ], 500);
         }
     }
-    
+
     public function create()
     {
-        $roles = Role::all();
+        $roles    = Role::all();
         $counties = County::all();
         return view('contracts.create', compact('roles', 'counties'));
     }
-
-
 
     public function terminate(Request $request, $id)
     {
         $request->validate([
             'termination_reason' => 'required|string',
-            'termination_date' => 'required|date'
+            'termination_date'   => 'required|date'
         ]);
 
         try {
             DB::beginTransaction();
 
             $contractSignature = UserContractSignature::findOrFail($id);
-            
+
             if (!in_array($contractSignature->status, ['approved', 'accepted'])) {
                 return redirect()->back()->with('error', 'Only approved or accepted contracts can be terminated.');
             }
 
-            // Update the current contract status
             $contractSignature->update([
-                'status' => 'terminated',
+                'status'             => 'terminated',
                 'termination_reason' => $request->termination_reason,
-                'termination_date' => $request->termination_date,
-                'terminated_at' => now(),
-                'terminated_by' => auth()->id()
+                'termination_date'   => $request->termination_date,
+                'terminated_at'      => now(),
+                'terminated_by'      => auth()->id()
             ]);
 
-            // Check if user has any draft contracts that can be activated
             $draftContract = UserContractSignature::where('user_id', $contractSignature->user_id)
                 ->where('status', 'draft')
                 ->orderBy('created_at', 'asc')
@@ -649,98 +567,35 @@ private function calculateRemainingDays($contract)
 
             if ($draftContract) {
                 $draftContract->update([
-                    'status' => 'approved',
+                    'status'          => 'approved',
                     'activation_date' => now()
                 ]);
             }
 
             DB::commit();
-
             return redirect()->back()->with('success', 'Contract terminated successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
-            \Log::error('Contract termination failed: ' . $e->getMessage());
-            return redirect()->back()->with('error', 'Failed to terminate contract. Please try again.');
-        }
-    }
-
-
-    
-    public function show(AdminContract $contract)
-    {
-        $contract->load('counties');
-        return view('contracts.show', compact('contract'));
-    }
-
-    public function getInfo($id)
-    {
-        try {
-            $contract = UserContractSignature::with([
-                'user:id,first_name,last_name,phone,email,address,role_id',
-                'user.role:id,display_name',
-                'user.bankDetails:id,user_id,bank_id,bank_branch,account_name,account_number',
-                'user.bankDetails.bank:id,name,bank_code',
-                'user.userDocuments:id,user_id,id_number,id_photo_path,kra_pin,kra_certificate_path',
-            ])->findOrFail($id);
-    
-            // Log the contract data for debugging
-            \Log::info('Contract data:', ['contract' => $contract->toArray()]);
-    
-            $response = [
-                'name' => $contract->user->first_name . ' ' . $contract->user->last_name,
-                'phone' => $contract->user->phone,
-                'email' => $contract->user->email,
-                'address' => $contract->user->address,
-                'role' => $contract->user->role->display_name,
-                'bankDetails' => null,
-                'documents' => null,
-                'signature' => null,
-            ];
-    
-            if ($contract->user->bankDetails) {
-                $response['bankDetails'] = [
-                    'bank' => $contract->user->bankDetails->bank->name ?? $contract->user->bankDetails->bank_id,
-                    'branch' => $contract->user->bankDetails->bank_branch,
-                    'bankCode' => $contract->user->bankDetails->bank->bank_code ?? 'N/A',
-                    'accountName' => $contract->user->bankDetails->account_name,
-                    'accountNumber' => $contract->user->bankDetails->account_number,
-                ];
-            }
-    
-            if ($contract->user->documents) {
-                $response['documents'] = [
-                    'idNumber' => $contract->user->documents->id_number,
-                    'idPhotoUrl' => asset('storage/' . $contract->user->documents->id_photo_path),
-                    'kraPin' => $contract->user->documents->kra_pin,
-                    'certificateUrl' => asset('storage/' . $contract->user->documents->kra_certificate_path),
-                ];
-            }
-    
-            $response['signature'] = [
-                'signedAt' => $contract->agreed_at,
-                'status' => ucfirst($contract->status),
-                'signatureUrl' => $contract->signature,
-            ];
-    
-            return response()->json($response);
-    
-        } catch (ModelNotFoundException $e) {
-            \Log::error('Contract not found: ' . $e->getMessage());
-            return response()->json(['error' => 'Contract not found.'], 404);
-        } catch (\Exception $e) {
-            \Log::error('Error in getInfo: ' . $e->getMessage());
-            \Log::error($e->getTraceAsString());
-            return response()->json(['error' => 'An error occurred while fetching contract information.'], 500);
+            \Log::error('Contract termination failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return back()->with('error', 'Failed to terminate contract: ' . $e->getMessage());
         }
     }
 
     public function edit(AdminContract $contract)
     {
-        $roles = Role::all();
-        $counties = County::all();
-        return view('contracts.edit', compact('contract', 'roles', 'counties'));
-    }
+        $roles         = Role::all();
+        $counties      = County::all();
+        $users         = User::all();
+        $projects      = Projects::orderBy('name')->get();
+        $durationTypes = ['days', 'months', 'years'];
 
+        $contract->load('counties');
+
+        return view('contracts.edit', compact('contract', 'roles', 'counties', 'users', 'projects', 'durationTypes'));
+    }
 
     public function destroy(AdminContract $contract)
     {
@@ -749,29 +604,84 @@ private function calculateRemainingDays($contract)
         return redirect()->route('contracts.index')->with('success', 'Contract deleted successfully.');
     }
 
-
     public function userContract()
     {
-        $user = Auth::user();
-        $contract = AdminContract::where('role_id', $user->role_id)
-            ->where('status', 'published')
-            ->whereHas('counties', function ($query) use ($user) {
-                $query->where('counties.id', $user->county_id);
-            })
-            ->with('counties')
-            ->first();
+        $user            = Auth::user();
+        $activeProjectId = $user->getActiveProjectId();
+
+        if ($activeProjectId) {
+            if ($user->role_id == 2) {
+                $assignedCountyIds = DB::table('regional_coordinator_counties')
+                    ->where('user_id', $user->id)
+                    ->pluck('county_id');
+
+                $contract = AdminContract::where('role_id', $user->role_id)
+                    ->where('status', 'published')
+                    ->where('active_for_onboarding', true)
+                    ->where(function ($q) use ($activeProjectId) {
+                        $q->whereNull('project_id')
+                          ->orWhere('project_id', $activeProjectId);
+                    })
+                    ->whereHas('counties', function ($query) use ($assignedCountyIds) {
+                        $query->whereIn('county_id', $assignedCountyIds);
+                    })
+                    ->with('counties')
+                    ->latest()
+                    ->first();
+            } else {
+                $contract = AdminContract::where('role_id', $user->role_id)
+                    ->where('status', 'published')
+                    ->where('active_for_onboarding', true)
+                    ->where(function ($q) use ($activeProjectId) {
+                        $q->whereNull('project_id')
+                          ->orWhere('project_id', $activeProjectId);
+                    })
+                    ->whereHas('counties', function ($query) use ($user) {
+                        $query->where('county_id', $user->county_id);
+                    })
+                    ->with('counties')
+                    ->latest()
+                    ->first();
+            }
+        } else {
+            if ($user->role_id == 2) {
+                $assignedCountyIds = DB::table('regional_coordinator_counties')
+                    ->where('user_id', $user->id)
+                    ->pluck('county_id');
+
+                $contract = AdminContract::where('role_id', $user->role_id)
+                    ->where('status', 'published')
+                    ->where('active_for_onboarding', true)
+                    ->whereHas('counties', function ($query) use ($assignedCountyIds) {
+                        $query->whereIn('county_id', $assignedCountyIds);
+                    })
+                    ->with('counties')
+                    ->latest()
+                    ->first();
+            } else {
+                $contract = AdminContract::where('role_id', $user->role_id)
+                    ->where('status', 'published')
+                    ->where('active_for_onboarding', true)
+                    ->whereHas('counties', function ($query) use ($user) {
+                        $query->where('county_id', $user->county_id);
+                    })
+                    ->with('counties')
+                    ->latest()
+                    ->first();
+            }
+        }
 
         return view('onboarding.contract', compact('contract'));
     }
 
     private function storeBase64Image($base64Image)
     {
-        $image_parts = explode(";base64,", $base64Image);
+        $image_parts    = explode(";base64,", $base64Image);
         $image_type_aux = explode("image/", $image_parts[0]);
-        $image_type = $image_type_aux[1];
-        $image_base64 = base64_decode($image_parts[1]);
-        $file_name = 'authority_signatures/' . uniqid() . '.' . $image_type;
-        
+        $image_type     = $image_type_aux[1];
+        $image_base64   = base64_decode($image_parts[1]);
+        $file_name      = 'authority_signatures/' . uniqid() . '.' . $image_type;
+
         Storage::disk('public')->put($file_name, $image_base64);
 
         return $file_name;
@@ -779,60 +689,161 @@ private function calculateRemainingDays($contract)
 
     public function viewUserContract()
     {
-        $user = Auth::user();
-        
-        // Get the specific contract signature for this user
-        $contractSignature = UserContractSignature::where('user_id', $user->id)
-            ->whereNotNull('signature')
-            ->whereNotNull('agreed_at')
-            ->orderBy('agreed_at', 'asc')
+        $user            = Auth::user();
+        $activeProjectId = $user->getActiveProjectId();
+        $contract        = null;
+
+        if ($activeProjectId) {
+            if ($user->role_id == 2) {
+                // Regional Coordinator: look up by assigned counties
+                $assignedCountyIds = DB::table('regional_coordinator_counties')
+                    ->where('user_id', $user->id)
+                    ->pluck('county_id');
+
+                $contract = AdminContract::where('role_id', $user->role_id)
+                    ->where('status', 'published')
+                    ->where('active_for_onboarding', true)
+                    ->where(function ($q) use ($activeProjectId) {
+                        $q->whereNull('project_id')
+                          ->orWhere('project_id', $activeProjectId);
+                    })
+                    ->whereHas('counties', function ($query) use ($assignedCountyIds) {
+                        $query->whereIn('county_id', $assignedCountyIds);
+                    })
+                    ->with('counties')
+                    ->latest()
+                    ->first();
+
+                Log::info('Group contract query result for RC (viewUserContract)', [
+                    'user_id'           => $user->id,
+                    'assigned_counties' => $assignedCountyIds,
+                    'active_project_id' => $activeProjectId,
+                    'contract_found'    => $contract ? $contract->id : null,
+                ]);
+            } else {
+                $contract = AdminContract::where('role_id', $user->role_id)
+                    ->where('status', 'published')
+                    ->where('active_for_onboarding', true)
+                    ->where(function ($q) use ($activeProjectId) {
+                        $q->whereNull('project_id')
+                          ->orWhere('project_id', $activeProjectId);
+                    })
+                    ->whereHas('counties', function ($query) use ($user) {
+                        $query->where('county_id', $user->county_id);
+                    })
+                    ->with('counties')
+                    ->latest()
+                    ->first();
+            }
+        } else {
+            // No active project — fall back to any matching published contract
+            if ($user->role_id == 2) {
+                $assignedCountyIds = DB::table('regional_coordinator_counties')
+                    ->where('user_id', $user->id)
+                    ->pluck('county_id');
+
+                $contract = AdminContract::where('role_id', $user->role_id)
+                    ->where('status', 'published')
+                    ->where('active_for_onboarding', true)
+                    ->whereHas('counties', function ($query) use ($assignedCountyIds) {
+                        $query->whereIn('county_id', $assignedCountyIds);
+                    })
+                    ->with('counties')
+                    ->latest()
+                    ->first();
+
+                Log::info('Group contract query result for RC (viewUserContract, no project)', [
+                    'user_id'           => $user->id,
+                    'assigned_counties' => $assignedCountyIds,
+                    'contract_found'    => $contract ? $contract->id : null,
+                ]);
+            } else {
+                $contract = AdminContract::where('role_id', $user->role_id)
+                    ->where('status', 'published')
+                    ->where('active_for_onboarding', true)
+                    ->whereHas('counties', function ($query) use ($user) {
+                        $query->where('county_id', $user->county_id);
+                    })
+                    ->with('counties')
+                    ->latest()
+                    ->first();
+            }
+        }
+
+        if (!$contract) {
+            return response()->view('errors.404', [
+                'message' => 'No contract found'
+            ], 404);
+        }
+
+        // Get the user's signed contract signature
+        $contractSignature = UserContractSignature::where('contract_id', $contract->id)
+            ->where('user_id', $user->id)
+            ->latest()
             ->first();
 
-        if (!$contractSignature) {
-            Log::error('No signed contract found for user', [
-                'user_id' => $user->id
-            ]);
-            return response('No contract found for this user.', 404);
+        if (!$contractSignature || !$contractSignature->signature) {
+            return response()->view('errors.404', [
+                'message' => 'No signed contract found'
+            ], 404);
         }
 
-        try {
-            // Add debug logging
-            Log::info('Found contract signature', [
-                'user_id' => $user->id,
-                'contract_signature_id' => $contractSignature->id,
-                'contract_id' => $contractSignature->contract_id,
-                'status' => $contractSignature->status,
-                'agreed_at' => $contractSignature->agreed_at
-            ]);
+        // Generate and return the PDF
+        $pdfContent = $this->contractPdfService->generateContract($user, $contractSignature);
 
-            // Pass the contract signature explicitly to ensure correct contract is used
-            $pdfContent = $this->contractPdfService->generateContract($user, $contractSignature);
-
-            return response($pdfContent)
-                ->header('Content-Type', 'application/pdf')
-                ->header('Content-Disposition', 'inline; filename="your_contract.pdf"');
-        } catch (\Exception $e) {
-            Log::error('Error generating user contract PDF', [
-                'user_id' => $user->id,
-                'contract_signature_id' => $contractSignature->id,
-                'contract_id' => $contractSignature->contract_id,
-                'error' => $e->getMessage()
-            ]);
-            return response('Error generating contract PDF', 500);
-        }
+        return response($pdfContent)
+            ->header('Content-Type', 'application/pdf')
+            ->header('Content-Disposition', 'inline; filename="contract.pdf"');
     }
-
 
     private function isContractExpired($contract)
     {
         if (!$contract->start_date) {
             return false;
         }
-        
+
         $startDate = Carbon::parse($contract->start_date);
-        $endDate = $this->getEndDate($startDate, $contract->number_of_days);
+        $endDate   = $this->getEndDate($startDate, $contract->number_of_days);
         return Carbon::now()->isAfter($endDate);
     }
+
+    public function reset(Request $request, $id)
+{
+    $request->validate([
+        'reset_reason' => 'required|string'
+    ]);
+
+    try {
+        DB::beginTransaction();
+
+        $contractSignature = UserContractSignature::findOrFail($id);
+        
+        $user = $contractSignature->user;
+
+        Log::info("Resetting user contract status", [
+            'user_id'     => $user->id,
+            'contract_id' => $id,
+            'old_status'  => $contractSignature->status,
+            'reason'      => $request->reset_reason,
+            'reset_by'    => auth()->id()
+        ]);
+
+        $user->update([
+            'onboarding_status' => false,
+            'contract_signed'   => false,
+        ]);
+
+        $contractSignature->delete();
+
+        DB::commit();
+
+        return redirect()->back()->with('success', 'User has been reset successfully and can now start a new onboarding process.');
+    } catch (\Exception $e) {
+        DB::rollBack();
+        Log::error('User reset failed: ' . $e->getMessage());
+        return redirect()->back()->with('error', 'Failed to reset user. Please try again.');
+    }
+}
 
     public function handleExpiredContracts()
     {
@@ -844,33 +855,28 @@ private function calculateRemainingDays($contract)
             });
 
         foreach ($expiredSignatures as $signature) {
-            // Mark contract as expired
             $signature->update([
-                'status' => 'expired',
-                'completion_date' => Carbon::now(),
+                'status'            => 'expired',
+                'completion_date'   => Carbon::now(),
                 'completion_reason' => 'Contract period expired',
-                'completion_notes' => 'Automatically marked as expired by system'
+                'completion_notes'  => 'Automatically marked as expired by system'
             ]);
 
-            // Check if user has any other active contracts
             $activeContracts = UserContractSignature::where('user_id', $signature->user_id)
                 ->whereIn('status', ['approved', 'accepted'])
                 ->count();
 
             if ($activeContracts === 0) {
-                $signature->user->update([
-                    'available_for_transfer' => true
-                ]);
+                $signature->user->update(['available_for_transfer' => true]);
             }
         }
 
         return $expiredSignatures->count() . " expired contracts processed.";
     }
 
-
     public function checkTransferEligibility(User $user)
     {
-        $activeContracts = UserContractSignature::where('user_id', $user->id)
+        $activeContracts         = UserContractSignature::where('user_id', $user->id)
             ->whereIn('status', ['approved', 'accepted'])
             ->get();
 
@@ -886,420 +892,250 @@ private function calculateRemainingDays($contract)
         return !$hasActiveValidContracts;
     }
 
-    public function transferUser(Request $request, User $user)
+    private function checkAndHandleExpiredContracts()
     {
-        $request->validate([
-            'new_county_id' => 'required|exists:counties,id',
-            'new_contract_id' => 'required|exists:admin_contracts,id',
-            'transfer_reason' => 'required|string',
-            'transfer_date' => 'required|date',
-            'transfer_type' => 'required|in:expired,completed,terminated'
-        ]);
+        $expiredContracts = AdminContract::with('counties')
+            ->where('active_for_onboarding', true)
+            ->get()
+            ->filter(function ($contract) {
+                return $this->isContractExpired($contract);
+            });
 
-        // Check transfer eligibility
-        if (!$this->checkTransferEligibility($user)) {
-            return back()->with('error', 'User has active, non-expired contracts and cannot be transferred.');
+        foreach ($expiredContracts as $contract) {
+            $contract->update([
+                'active_for_onboarding' => false,
+                'status'                => 'dropped'
+            ]);
+
+            UserContractSignature::where('contract_id', $contract->id)
+                ->whereIn('status', ['approved', 'accepted'])
+                ->update([
+                    'status'            => 'expired',
+                    'completion_date'   => now(),
+                    'completion_reason' => 'Contract expired',
+                    'completion_notes'  => 'Automatically marked as expired by system'
+                ]);
         }
+    }
 
+    private function validateContract(Request $request)
+    {
+        return $request->validate([
+            'title'                => 'required|string|max:255',
+            'start_date'           => ['required', 'date', 'after_or_equal:today'],
+            'number_of_days'       => 'required|integer|min:1',
+            'description'          => 'required|string',
+            'role_id'              => 'required|exists:roles,id',
+            'counties'             => 'required|array',
+            'counties.*'           => 'exists:counties,id',
+            'status'               => [
+                'required',
+                'in:draft,published,dropped',
+                function ($attribute, $value, $fail) use ($request) {
+                    if ($value === 'published' && !$request->has('active_for_onboarding')) {
+                        $fail('Published contracts must be active for onboarding.');
+                    }
+                }
+            ],
+            'authority_signature'   => 'required|string',
+            'active_for_onboarding' => 'boolean'
+        ]);
+    }
+
+    private function hasActiveContract($roleId, $countyIds)
+    {
+        return AdminContract::where('role_id', $roleId)
+            ->where('active_for_onboarding', true)
+            ->where('status', 'published')
+            ->whereHas('counties', function ($query) use ($countyIds) {
+                $query->whereIn('county_id', $countyIds);
+            })
+            ->whereDate('start_date', '<=', now())
+            ->where(function ($query) {
+                $query->whereNull('end_date')
+                      ->orWhereDate('end_date', '>=', now());
+            })
+            ->exists();
+    }
+
+    public function restore($id)
+    {
         try {
             DB::beginTransaction();
 
-            // Mark all previous contracts as expired/completed if they're not already
-            UserContractSignature::where('user_id', $user->id)
-                ->whereIn('status', ['approved', 'accepted'])
-                ->update([
-                    'status' => 'expired',
-                    'completion_date' => Carbon::now(),
-                    'completion_reason' => 'Contract marked as expired due to transfer',
-                    'completion_notes' => 'User transferred to new county'
-                ]);
+            $contract = AdminContract::withTrashed()->findOrFail($id);
 
-            // Create new contract signature for the transfer
-            UserContractSignature::create([
-                'user_id' => $user->id,
-                'contract_id' => $request->new_contract_id,
-                'status' => 'draft',
-                'transfer_from_county' => $user->county_id,
-                'transfer_reason' => $request->transfer_reason,
-                'transfer_date' => $request->transfer_date,
-                'transfer_type' => $request->transfer_type
-            ]);
+            if ($contract->active_for_onboarding) {
+                $hasConflicts = $this->hasActiveContract(
+                    $contract->role_id,
+                    $contract->counties->pluck('id')->toArray()
+                );
 
-            // Update user's county
-            $user->update([
-                'county_id' => $request->new_county_id,
-                'available_for_transfer' => false
-            ]);
-
-            DB::commit();
-            return redirect()->back()->with('success', 'User transferred successfully.');
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return back()->with('error', 'Transfer failed: ' . $e->getMessage());
-        }
-    }
-
-    public function getUserContractStatus(User $user)
-    {
-        $contracts = UserContractSignature::with('contract')
-            ->where('user_id', $user->id)
-            ->get()
-            ->map(function ($signature) {
-                $contract = $signature->contract;
-                $isExpired = $this->isContractExpired($contract);
-                
-                return [
-                    'contract_id' => $contract->id,
-                    'title' => $contract->title,
-                    'status' => $signature->status,
-                    'is_expired' => $isExpired,
-                    'start_date' => $contract->start_date,
-                    'end_date' => Carbon::parse($contract->start_date)->addDays($contract->number_of_days),
-                    'days_remaining' => $isExpired ? 0 : Carbon::now()->diffInDays(
-                        Carbon::parse($contract->start_date)->addDays($contract->number_of_days),
-                        false
-                    )
-                ];
-            });
-
-        return [
-            'contracts' => $contracts,
-            'can_be_transferred' => $this->checkTransferEligibility($user),
-            'active_contracts' => $contracts->where('is_expired', false)->count(),
-            'expired_contracts' => $contracts->where('is_expired', true)->count()
-        ];
-    }
-
-    private function checkAndHandleExpiredContracts()
-{
-    $expiredContracts = AdminContract::with('counties')
-        ->where('active_for_onboarding', true)
-        ->get()
-        ->filter(function ($contract) {
-            return $this->isContractExpired($contract);
-        });
-
-    foreach ($expiredContracts as $contract) {
-        $contract->update([
-            'active_for_onboarding' => false,
-            'status' => 'dropped'
-        ]);
-
-        // Mark all related user contracts as expired
-        UserContractSignature::where('contract_id', $contract->id)
-            ->whereIn('status', ['approved', 'accepted'])
-            ->update([
-                'status' => 'expired',
-                'completion_date' => now(),
-                'completion_reason' => 'Contract expired',
-                'completion_notes' => 'Automatically marked as expired by system'
-            ]);
-    }
-}
-
-private function validateContract(Request $request) 
-{
-    return $request->validate([
-        'title' => 'required|string|max:255',
-        'start_date' => [
-            'required',
-            'date',
-            'after_or_equal:today' // Ensure contract doesn't start in the past
-        ],
-        'number_of_days' => 'required|integer|min:1',
-        'description' => 'required|string',
-        'role_id' => 'required|exists:roles,id',
-        'counties' => 'required|array',
-        'counties.*' => 'exists:counties,id',
-        'status' => [
-            'required',
-            'in:draft,published,dropped',
-            function ($attribute, $value, $fail) use ($request) {
-                if ($value === 'published' && !$request->has('active_for_onboarding')) {
-                    $fail('Published contracts must be active for onboarding.');
+                if ($hasConflicts) {
+                    return back()->with('error', 'Cannot restore contract. Active contract exists for this role and counties.');
                 }
             }
-        ],
-        'authority_signature' => 'required|string',
-        'active_for_onboarding' => 'boolean'
-    ]);
-}
 
-private function hasActiveContract($roleId, $countyIds) 
-{
-    return AdminContract::where('role_id', $roleId)
-        ->where('active_for_onboarding', true)
-        ->where('status', 'published')
-        ->whereHas('counties', function($query) use ($countyIds) {
-            $query->whereIn('county_id', $countyIds);
-        })
-        ->whereDate('start_date', '<=', now())
-        ->where(function($query) {
-            $query->whereNull('end_date')
-                  ->orWhereDate('end_date', '>=', now());
-        })
-        ->exists();
-}
+            $contract->restore();
+            DB::commit();
 
-public function restore($id)
-{
-    try {
-        DB::beginTransaction();
+            return back()->with('success', 'Contract restored successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Contract restoration failed', [
+                'contract_id' => $id,
+                'error'       => $e->getMessage()
+            ]);
+            return back()->with('error', 'Failed to restore contract.');
+        }
+    }
 
-        $contract = AdminContract::withTrashed()->findOrFail($id);
-        
-        // Check if restoration would create conflicts
-        if ($contract->active_for_onboarding) {
-            $hasConflicts = $this->hasActiveContract(
-                $contract->role_id, 
-                $contract->counties->pluck('id')->toArray()
-            );
+    public function auditTrail($contract)
+    {
+        try {
+            if (!($contract instanceof AdminContract)) {
+                $contract = AdminContract::findOrFail($contract);
+            }
 
-            if ($hasConflicts) {
-                return back()->with('error', 'Cannot restore contract. Active contract exists for this role and counties.');
+            $contract->load(['versions' => function ($query) {
+                $query->with('changedByUser')
+                      ->orderBy('created_at', 'desc');
+            }]);
+
+            return view('contracts.audit-trail', [
+                'contract' => $contract,
+                'versions' => $contract->versions,
+                'message'  => $contract->versions->count() ? null : 'No changes have been recorded for this contract yet.'
+            ]);
+        } catch (\Exception $e) {
+            return back()->with('error', 'Unable to load audit trail. Please try again.');
+        }
+    }
+
+    public function previewVersion(AdminContract $contract, $versionId)
+    {
+        try {
+            $version = ContractVersion::findOrFail($versionId);
+
+            if ($version->contract_id !== $contract->id) {
+                throw new ModelNotFoundException();
+            }
+
+            $tempContract = new AdminContract();
+            $tempContract->fill([
+                'description'          => $version->description,
+                'authority_signature'  => $version->authority_signature,
+                'authority_name'       => $version->authority_name,
+                'authority_designation'=> $version->authority_designation,
+                'status'               => $version->status,
+            ]);
+
+            $pdfContent = $this->contractPdfService->generateVersionContract($tempContract, $version);
+
+            return response($pdfContent)
+                ->header('Content-Type', 'application/pdf')
+                ->header('Content-Disposition', 'inline; filename="contract_version_' . $versionId . '.pdf"');
+        } catch (ModelNotFoundException $e) {
+            return response()->view('errors.404', ['message' => 'Contract version not found'], 404);
+        } catch (\Exception $e) {
+            Log::error('Error previewing contract version', [
+                'contract_id' => $contract->id,
+                'version_id'  => $versionId,
+                'error'       => $e->getMessage()
+            ]);
+            return response()->view('errors.500', ['message' => 'Error generating contract preview'], 500);
+        }
+    }
+
+    public function downloadVersion(AdminContract $contract, $versionId)
+    {
+        try {
+            $version = ContractVersion::findOrFail($versionId);
+
+            if ($version->contract_id !== $contract->id) {
+                throw new ModelNotFoundException();
+            }
+
+            $tempContract = new AdminContract();
+            $tempContract->fill([
+                'description'          => $version->description,
+                'authority_signature'  => $version->authority_signature,
+                'authority_name'       => $version->authority_name,
+                'authority_designation'=> $version->authority_designation,
+                'status'               => $version->status,
+            ]);
+
+            $pdfContent = $this->contractPdfService->generateVersionContract($tempContract, $version);
+
+            return response($pdfContent)
+                ->header('Content-Type', 'application/pdf')
+                ->header('Content-Disposition', 'attachment; filename="contract_version_' . $versionId . '.pdf"');
+        } catch (ModelNotFoundException $e) {
+            return response()->view('errors.404', ['message' => 'Contract version not found'], 404);
+        } catch (\Exception $e) {
+            Log::error('Error downloading contract version', [
+                'contract_id' => $contract->id,
+                'version_id'  => $versionId,
+                'error'       => $e->getMessage()
+            ]);
+            return response()->view('errors.500', ['message' => 'Error generating contract download'], 500);
+        }
+    }
+
+    private function calculateWorkingDays($startDate, $numberOfDays)
+    {
+        $currentDate = Carbon::parse($startDate);
+        $workingDays = 0;
+        $daysAdded   = 0;
+
+        while ($daysAdded < $numberOfDays) {
+            if ($currentDate->dayOfWeek !== Carbon::SUNDAY) {
+                $workingDays++;
+                $daysAdded++;
+            }
+            $currentDate->addDay();
+        }
+
+        return $workingDays;
+    }
+
+    private function getEndDate($startDate, $numberOfDays)
+    {
+        $currentDate = Carbon::parse($startDate);
+        $daysAdded   = 0;
+
+        while ($daysAdded < $numberOfDays) {
+            $currentDate->addDay();
+            if ($currentDate->dayOfWeek !== Carbon::SUNDAY) {
+                $daysAdded++;
             }
         }
 
-        $contract->restore();
-        DB::commit();
-
-        return back()->with('success', 'Contract restored successfully.');
-    } catch (\Exception $e) {
-        DB::rollBack();
-        Log::error('Contract restoration failed', [
-            'contract_id' => $id,
-            'error' => $e->getMessage()
-        ]);
-        return back()->with('error', 'Failed to restore contract.');
-    }
-}
-
-public function reset(Request $request, $id)
-{
-    $request->validate([
-        'reset_reason' => 'required|string'
-    ]);
-
-    try {
-        DB::beginTransaction();
-
-        $contractSignature = UserContractSignature::findOrFail($id);
-        
-        // Get the user
-        $user = $contractSignature->user;
-
-        // Log the reset
-        Log::info("Resetting user contract status", [
-            'user_id' => $user->id,
-            'contract_id' => $id,
-            'old_status' => $contractSignature->status,
-            'reason' => $request->reset_reason,
-            'reset_by' => auth()->id()
-        ]);
-
-        // Reset user status
-        $user->update([
-            'onboarding_status' => false,
-            'contract_signed' => false,
-           
-        ]);
-
-        // Delete the contract signature record
-        $contractSignature->delete();
-
-        DB::commit();
-
-        return redirect()->back()->with('success', 'User has been reset successfully and can now start a new onboarding process.');
-    } catch (\Exception $e) {
-        DB::rollBack();
-        Log::error('User reset failed: ' . $e->getMessage());
-        return redirect()->back()->with('error', 'Failed to reset user. Please try again.');
-    }
-}
-
-public function batchOperation(Request $request)
-{
-    $request->validate([
-        'contracts' => 'required|array',
-        'contracts.*' => 'exists:admin_contracts,id',
-        'action' => 'required|in:activate,deactivate,delete'
-    ]);
-
-    try {
-        DB::beginTransaction();
-
-        foreach ($request->contracts as $contractId) {
-            $contract = AdminContract::findOrFail($contractId);
-            
-            switch ($request->action) {
-                case 'activate':
-                    if (!$this->hasActiveContract($contract->role_id, $contract->counties->pluck('id')->toArray())) {
-                        $contract->update(['active_for_onboarding' => true]);
-                    }
-                    break;
-                    
-                case 'deactivate':
-                    $contract->update(['active_for_onboarding' => false]);
-                    break;
-
-                case 'delete':
-                    if (!$contract->userSignatures()->whereIn('status', ['approved', 'accepted'])->exists()) {
-                        $contract->delete();
-                    }
-                    break;
-            }
-        }
-
-        DB::commit();
-        return back()->with('success', 'Batch operation completed successfully.');
-    } catch (\Exception $e) {
-        DB::rollBack();
-        Log::error('Batch operation failed', ['error' => $e->getMessage()]);
-        return back()->with('error', 'Failed to process batch operation.');
-    }
-}
-
-public function handle()
-{
-    $controller = app(ContractController::class);
-    $controller->checkAndHandleExpiredContracts();
-}
-
-protected function schedule(Schedule $schedule)
-{
-    $schedule->command('contracts:check-expired')->daily();
-}
-
-public function auditTrail($contract)
-{
-    try {
-        if (!($contract instanceof AdminContract)) {
-            $contract = AdminContract::findOrFail($contract);
-        }
-        $contract->load(['versions' => function($query) {
-            $query->with('changedByUser')
-                  ->orderBy('created_at', 'desc');
-        }]);
-
-        return view('contracts.audit-trail', [
-            'contract' => $contract,
-            'versions' => $contract->versions,
-            'message' => $contract->versions->count() ? null : 'No changes have been recorded for this contract yet.'
-        ]);
-
-    } catch (\Exception $e) {
-        return back()->with('error', 'Unable to load audit trail. Please try again.');
-    }
-}
-
-public function previewVersion(AdminContract $contract, $versionId)
-{
-    try {
-        $version = ContractVersion::findOrFail($versionId);
-        
-        if ($version->contract_id !== $contract->id) {
-            throw new ModelNotFoundException();
-        }
-
-        // Create a temporary contract object with version data
-        $tempContract = new AdminContract();
-        $tempContract->fill([
-            'description' => $version->description,
-            'authority_signature' => $version->authority_signature,
-            'authority_name' => $version->authority_name,
-            'authority_designation' => $version->authority_designation,
-            'status' => $version->status,
-        ]);
-
-        // Generate PDF using the version data
-        $pdfContent = $this->contractPdfService->generateVersionContract($tempContract, $version);
-
-        return response($pdfContent)
-            ->header('Content-Type', 'application/pdf')
-            ->header('Content-Disposition', 'inline; filename="contract_version_' . $versionId . '.pdf"');
-
-    } catch (ModelNotFoundException $e) {
-        return response()->view('errors.404', ['message' => 'Contract version not found'], 404);
-    } catch (\Exception $e) {
-        Log::error('Error previewing contract version', [
-            'contract_id' => $contract->id,
-            'version_id' => $versionId,
-            'error' => $e->getMessage()
-        ]);
-        return response()->view('errors.500', ['message' => 'Error generating contract preview'], 500);
-    }
-}
-
-
-public function downloadVersion(AdminContract $contract, $versionId)
-{
-    try {
-        $version = ContractVersion::findOrFail($versionId);
-        
-        if ($version->contract_id !== $contract->id) {
-            throw new ModelNotFoundException();
-        }
-
-        // Create a temporary contract object with version data
-        $tempContract = new AdminContract();
-        $tempContract->fill([
-            'description' => $version->description,
-            'authority_signature' => $version->authority_signature,
-            'authority_name' => $version->authority_name,
-            'authority_designation' => $version->authority_designation,
-            'status' => $version->status,
-        ]);
-
-        // Generate PDF using the version data
-        $pdfContent = $this->contractPdfService->generateVersionContract($tempContract, $version);
-
-        return response($pdfContent)
-            ->header('Content-Type', 'application/pdf')
-            ->header('Content-Disposition', 'attachment; filename="contract_version_' . $versionId . '.pdf"');
-
-    } catch (ModelNotFoundException $e) {
-        return response()->view('errors.404', ['message' => 'Contract version not found'], 404);
-    } catch (\Exception $e) {
-        Log::error('Error downloading contract version', [
-            'contract_id' => $contract->id,
-            'version_id' => $versionId,
-            'error' => $e->getMessage()
-        ]);
-        return response()->view('errors.500', ['message' => 'Error generating contract download'], 500);
-    }
-}
-
-
-private function calculateWorkingDays($startDate, $numberOfDays) 
-{
-    $currentDate = Carbon::parse($startDate);
-    $workingDays = 0;
-    $daysAdded = 0;
-
-    while ($daysAdded < $numberOfDays) {
-        // Skip if it's a Sunday (Carbon uses 0 for Sunday)
-        if ($currentDate->dayOfWeek !== Carbon::SUNDAY) {
-            $workingDays++;
-            $daysAdded++;
-        }
-        $currentDate->addDay();
+        return $currentDate->format('Y-m-d');
     }
 
-    return $workingDays;
-}
-
-private function getEndDate($startDate, $numberOfDays) 
+    public function searchUsers(Request $request, AdminContract $contract)
 {
-    $currentDate = Carbon::parse($startDate);
-    $daysAdded = 0;
+    $search = $request->get('q');
 
-    while ($daysAdded < $numberOfDays) {
-        $currentDate->addDay();
-        if ($currentDate->dayOfWeek !== Carbon::SUNDAY) {
-            $daysAdded++;
-        }
-    }
+    $users = User::where(function ($q) use ($search) {
+            $q->where('first_name', 'like', "%{$search}%")
+              ->orWhere('last_name', 'like', "%{$search}%")
+              ->orWhere('email', 'like', "%{$search}%")
+              ->orWhere('phone', 'like', "%{$search}%");
+        })
+        ->orderBy('first_name')
+        ->limit(20)
+        ->get(['id', 'first_name', 'last_name']);
 
-    return $currentDate;
+    return response()->json(
+        $users->map(function ($user) {
+            return [
+                'id'   => $user->id,
+                'text' => "{$user->first_name} {$user->last_name}"
+            ];
+        })
+    );
 }
+
 }

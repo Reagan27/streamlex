@@ -23,6 +23,8 @@ class PaymentController extends Controller
     public function index(Request $request)
     {
         $paymentCycles = PaymentCycle::orderBy('description', 'asc')->get();
+        $currentUser = auth()->user();
+        $activeProjectId = session('active_project_id') ?? $currentUser->getActiveProjectId();
         
         if ($paymentCycles->isEmpty()) {
             return view('payments.index', [
@@ -39,6 +41,7 @@ class PaymentController extends Controller
         
         $paymentsQuery = Payment::where('payment_cycle_id', $selectedCycle->id)
             ->with('user');
+        $activeProjectId = session('active_project_id') ?? $currentUser->getActiveProjectId();
     
 
         if ($request->filled('search')) {
@@ -55,6 +58,13 @@ class PaymentController extends Controller
                 ->orWhere('imported_name', 'like', "%{$search}%");
             });
         }
+
+       
+        if ($activeProjectId = session('active_project_id')) {
+            $paymentsQuery->whereHas('user.projects', function ($q) use ($activeProjectId) {
+                $q->where('projects.id', $activeProjectId);
+            });
+        }
     
         if ($request->has('sort_invoices')) {
             $direction = $request->input('sort_invoices') === 'desc' ? 'desc' : 'asc';
@@ -62,6 +72,12 @@ class PaymentController extends Controller
         }
         
         $payments = $paymentsQuery->paginate(15)->withQueryString();
+        
+        // Calculate productivity from field activities for each payment
+        $payments->getCollection()->each(function($payment) {
+            $payment->calculated_productivity = $payment->calculateProductivityFromActivities();
+            $payment->fam_invoice = $payment->getFieldActivityInvoice();
+        });
         
         $cycleTotals = Payment::where('payment_cycle_id', $selectedCycle->id)
             ->selectRaw('
@@ -83,6 +99,12 @@ class PaymentController extends Controller
             ->where('user_id', $user->id)
             ->orderBy('created_at', 'desc')
             ->paginate(15);
+        
+        // Calculate productivity from field activities for each payment
+        $pagedPayments->getCollection()->each(function($payment) {
+            $payment->calculated_productivity = $payment->calculateProductivityFromActivities();
+            $payment->fam_invoice = $payment->getFieldActivityInvoice();
+        });
             
         return view('payments.user', [
             'pagedPayments' => $pagedPayments,

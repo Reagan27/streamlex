@@ -37,12 +37,18 @@ class SettingsController extends Controller
     public function update(Request $request): RedirectResponse
     {
         $this->validate($request, [
-            'reg_email_confirmation' => 'boolean'
+            'reg_email_confirmation' => 'boolean',
+            'remember_me' => 'boolean',
+            'forgot_password' => 'boolean'
         ]);
 
-        $this->updateSetting($request->only('reg_email_confirmation'));
+        $this->updateSetting($request->only([
+            'reg_email_confirmation',
+            'remember_me',
+            'forgot_password'
+        ]));
 
-        return back()->withSuccess(__('Email confirmation settings updated successfully.'));
+        return back()->withSuccess(__('Authentication settings updated successfully.'));
     }
 
     private function updateSetting(array $input): void

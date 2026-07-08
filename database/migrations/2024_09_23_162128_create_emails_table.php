@@ -19,6 +19,7 @@ class CreateEmailsTable extends Migration
             $table->string('status')->default('pending');
             $table->text('response')->nullable();
             $table->string('batch_id')->nullable();
+            $table->string('attachment')->nullable();
             $table->timestamp('sent_at')->nullable();
             $table->timestamps();
         });

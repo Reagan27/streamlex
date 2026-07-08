@@ -122,13 +122,22 @@ class ApprovalController extends Controller {
         ]);
     
         $currentUser = auth()->user();
-        $contractSignature = $user->contractSignature;
         $emailConfirmationEnabled = Setting::get('reg_email_confirmation', false);
-    
+
+        // Find the contract signature actually linked to the user (most recently agreed)
+        $contractSignature = \Vanguard\UserContractSignature::where('user_id', $user->id)
+            ->whereNotNull('signature')
+            ->whereNotNull('agreed_at')
+            ->latest('agreed_at')
+            ->first();
+
         if (!$contractSignature) {
             return back()->with('error', __('No contract signature found for this user.'));
         }
-    
+
+        // Use the contract linked to the signature
+        $contract = $contractSignature->contract;
+
         // Remove active contract check for approval/acceptance
         if ($request->status === 'accepted') {
             if (!$this->roleHierarchyService->canAccept($currentUser, $user)) {
@@ -137,11 +146,11 @@ class ApprovalController extends Controller {
         } elseif (!$this->roleHierarchyService->canApprove($currentUser, $user)) {
             return back()->with('error', __('You do not have permission to approve this user\'s contract.'));
         }
-    
+
         $contractSignature->status = $request->status;
-    
+
         if ($request->status === 'approved') {
-            $this->pdfService->generateContract($user);
+            $this->pdfService->generateContract($user, $contractSignature);
             $contractSignature->decline_reason = null;
             
             if ($emailConfirmationEnabled) {
@@ -171,9 +180,9 @@ class ApprovalController extends Controller {
                 }
             }
         }
-    
+
         $contractSignature->save();
-    
+
         $queryParams = array_filter([
             'page' => $request->query('page', 1),
             'search' => $request->query('search'),
@@ -181,7 +190,7 @@ class ApprovalController extends Controller {
             'role' => $request->query('role'),
             'status' => $request->query('status'),
         ]);
-    
+
         return redirect()->route('approval.index', $queryParams)
             ->with('success', __('Contract status updated successfully.'));
     }

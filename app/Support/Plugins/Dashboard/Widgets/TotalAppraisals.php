@@ -15,14 +15,22 @@ class TotalAppraisals extends Widget
 
     public function __construct(protected readonly AppraisalRepository $appraisals)
     {
+    } 
+    public function render(): View
+{
+    $currentUser = Auth::user();
+    $activeProjectId = session('active_project_id') ?? $currentUser->getActiveProjectId();
+    
+    $query = $this->appraisals->query();
+
+    // ADD PROJECT FILTER HERE ✅
+    if ($activeProjectId) {
+        $query->whereHas('user.projects', function ($q) use ($activeProjectId) {
+            $q->where('projects.id', $activeProjectId);
+        });
     }
 
-    public function render(): View
-    {
-        $currentUser = Auth::user();
-        $query = $this->appraisals->query();
-
-        if ($currentUser->hasRole('Regional_Coordinator')) {
+    if ($currentUser->hasRole('Regional_Coordinator')) {
             $assignedCountyIds = $currentUser->counties()->pluck('counties.id');
             $query->whereHas('user', function ($q) use ($assignedCountyIds) {
                 $q->whereIn('county_id', $assignedCountyIds);

@@ -1,5 +1,5 @@
-<?php
 
+<?php
 /**
  * Authentication
  */
@@ -10,6 +10,7 @@ use Vanguard\Http\Controllers\Web\AppraisalController;
 use Vanguard\Http\Controllers\Web\ApprovalController;
 use Vanguard\Http\Controllers\Web\AssignSubordinatesController;
 use Vanguard\Http\Controllers\Web\ContractController;
+use Vanguard\Http\Controllers\Web\ContractDashboardController;
 use Vanguard\Http\Controllers\Web\OnboardingController;
 use Vanguard\Http\Controllers\Web\Profile\ProfileController;
 use Vanguard\Http\Controllers\Web\MismatchedPaymentController;
@@ -38,22 +39,34 @@ use Laravel\Fortify\Http\Controllers\TwoFactorSecretKeyController;
 use Vanguard\Http\Controllers\Web\Assets\AssetController;
 use Vanguard\Http\Controllers\Web\Assets\AssetAssignmentController;
 use Vanguard\Http\Controllers\Web\Assets\AssetDistributionController;
+use Vanguard\Http\Controllers\Web\RegionController;
+
+// Field Activities Page
 use Vanguard\Http\Controllers\Web\Assets\AssetHistoryController;
 use Vanguard\Http\Controllers\Web\Assets\AssetReturnController;
 use Vanguard\Http\Controllers\Web\Assets\MyAssetsController;
 use Vanguard\Http\Controllers\Web\FieldReportController;
+use Vanguard\Http\Controllers\Web\GeneralReportController;
+use Vanguard\Http\Controllers\Web\BackToOfficeReportController;
 use Vanguard\Http\Controllers\Web\InvoicePaymentController;
 use Vanguard\Http\Controllers\Web\RateableItemController;
 use Vanguard\Http\Controllers\Web\TrainingEventController;
 use Vanguard\Http\Controllers\Web\UserContractController;
 use Vanguard\Http\Controllers\Web\UserDocumentController;
+use Vanguard\Http\Controllers\Web\ComplianceController;
+use Vanguard\Http\Controllers\Web\DocumentAcknowledgementController;
 use Vanguard\Http\Controllers\Web\Users\BankDetailsController;
 use Vanguard\Http\Controllers\Web\Visualization\ExcelController;
 use Vanguard\Http\Controllers\Web\Visualization\VisualizationController;
 use Vanguard\Http\Controllers\Auth\ChangePasswordController;
 use Vanguard\Onboarding;
 use Vanguard\Http\Controllers\Web\BotAdminController;
-
+use Vanguard\Http\Controllers\Web\FieldActivitiesController;
+use Vanguard\County;
+use Vanguard\Http\Controllers\Web\NdaController;
+use Vanguard\Http\Controllers\Web\PolicyAcknowledgementController;
+use Vanguard\Http\Controllers\Web\MeetingController;
+use App\Http\Controllers\Web\CoachRequisitionController;
 
 Route::get('login', 'Auth\LoginController@show');
 Route::post('login', 'Auth\LoginController@login');
@@ -63,6 +76,8 @@ Route::group(['middleware' => ['registration', 'guest']], function () {
     Route::get('register', 'Auth\RegisterController@show');
     Route::post('register', 'Auth\RegisterController@register');
 });
+
+
 
 Route::emailVerification();
 
@@ -89,7 +104,37 @@ Route::group(['middleware' => 'two-factor'], function () {
 });
 
 Route::group(['middleware' => ['auth', 'verified']], function () {
+    // Employee document uploads
+    Route::post('/users/{user}/education-documents', [UserDocumentController::class, 'uploadEducation'])->name('user.education.upload');
+    Route::post('/users/{user}/other-documents', [UserDocumentController::class, 'uploadOther'])->name('user.otherdocs.upload');
 
+    // HR Policy Acknowledgement
+    Route::middleware(['nda'])->group(function () {
+        Route::get('/policy-acknowledgement', [PolicyAcknowledgementController::class, 'show'])->name('policy.acknowledgement');
+        Route::post('/policy-acknowledgement', [PolicyAcknowledgementController::class, 'acknowledge'])->name('policy.acknowledge');
+
+        Route::prefix('document-acknowledgements')->name('document_acknowledgements.')->group(function () {
+            Route::get('/', [DocumentAcknowledgementController::class, 'userAssignments'])->name('assignments.index');
+            Route::get('/assignments/{assignment}', [DocumentAcknowledgementController::class, 'showAssignment'])->name('assignments.show');
+            Route::post('/assignments/{assignment}/acknowledge', [DocumentAcknowledgementController::class, 'acknowledge'])->name('assignments.acknowledge');
+            Route::get('/assignments/{assignment}/download', [DocumentAcknowledgementController::class, 'downloadAssignment'])->name('assignments.download');
+        });
+    });
+
+Route::prefix('coach-requisitions')->name('coach-requisitions.')->group(function () {
+    Route::get('/', [CoachRequisitionController::class, 'index'])->name('index');
+    Route::get('create', [CoachRequisitionController::class, 'create'])->name('create');
+    Route::post('/', [CoachRequisitionController::class, 'store'])->name('store');
+    Route::get('{id}/edit', [CoachRequisitionController::class, 'edit'])->name('edit');
+    Route::put('{id}', [CoachRequisitionController::class, 'update'])->name('update');
+    Route::get('{id}', [CoachRequisitionController::class, 'show'])->name('show');
+    Route::get('{id}/approval', [CoachRequisitionController::class, 'approval'])->name('approval');
+    Route::post('{id}/approval', [CoachRequisitionController::class, 'approvalAction'])->name('approval.action');
+});
+// Field activity invoice PDF (server-side)
+Route::get('field-activities/{id}/invoice.pdf', [\App\Http\Controllers\Web\FieldActivityController::class, 'invoicePdf'])
+    ->name('field-activities.invoice.pdf')
+    ->middleware('auth');
     // Two-factor authentication routes
     Route::post('/user/two-factor-authentication', [TwoFactorAuthenticationController::class, 'store'])
         ->name('two-factor.enable');
@@ -116,14 +161,19 @@ Route::group(['middleware' => 'auth'], function () {
 });
 
 
-Route::group(['middleware' => ['auth', 'verified']], function () {
+// Add employeeinfo middleware after nda
+Route::group(['middleware' => ['auth', 'verified', 'check.onboarding', 'nda', 'employeeinfo']], function () {
+
+
+
+        
+
 
     /**
      * Dashboard
      */
     Route::get('/', 'DashboardController@index')
-        ->name('dashboard')
-        ->middleware(['auth', 'verified', 'check.onboarding']);
+    ->name('dashboard');
     /**
      * User Profile
      */
@@ -187,6 +237,9 @@ Route::group(['middleware' => ['auth', 'verified']], function () {
         // Geo Boundary Ajax Requests
         Route::get('subcounties', [ProfileController::class, 'getSubcounties'])->name('profile.get.subcounties');
         Route::get('wards', [ProfileController::class, 'getWards'])->name('profile.get.wards');
+
+        // Employee Info update
+        Route::post('employeeinfo', [\Vanguard\Http\Controllers\Web\Profile\EmployeeInfoController::class, 'update'])->name('profile.update.employeeinfo');
     });
 
     ##Change Password
@@ -223,57 +276,55 @@ Route::group(['middleware' => ['auth', 'verified']], function () {
             'middleware' => 'permission:users.manage'
         ], function () {
             // Main user routes
-            Route::get('/', [UsersController::class, 'index'])->name('users.index');
-            Route::get('/create', [UsersController::class, 'create'])->name('users.create');
-            Route::post('/', [UsersController::class, 'store'])->name('users.store');
+Route::get('/', [UsersController::class, 'index'])->name('users.index');
+Route::get('/create', [UsersController::class, 'create'])->name('users.create');
+Route::post('/', [UsersController::class, 'store'])->name('users.store');
 
-            // User viewing and editing routes
-            Route::get('/{user}', [UsersController::class, 'view'])->name('users.view');
-            Route::get('/{user}/edit', [UsersController::class, 'edit'])->name('users.edit');
-            Route::put('/{user}', [UsersController::class, 'update'])->name('users.update');
-            Route::delete('/{user}', [UsersController::class, 'destroy'])->name('users.destroy');
+// ✅ Location routes FIRST - before any /{user} wildcard
+Route::get('/get-subcounties', [UsersController::class, 'getSubcounties'])
+    ->name('get.subcounties');
+Route::get('/get-wards', [UsersController::class, 'getWards'])
+    ->name('get.wards');
 
-            // User details updates
-            Route::put('/{user}/update/details', [DetailsController::class, 'update'])
-                ->name('users.update.details');
-            Route::put('/{user}/update/login-details', [LoginDetailsController::class, 'update'])
-                ->name('users.update.login-details');
-            Route::put('/{user}/update/counties', [DetailsController::class, 'updateCounties'])
-                ->name('users.update.counties')
-                ->middleware('permission:users.update.counties');
+// Search & import (also before wildcard)
+Route::get('/search', [UsersController::class, 'search'])->name('users.search');
+Route::get('/deep-search', [UsersController::class, 'deepSearch'])->name('users.deepSearch');
+Route::get('/list', [UsersController::class, 'list'])->name('users.list');
+Route::post('/import', [UsersController::class, 'importUsers'])->name('users.import');
+Route::get('/template/download', function () {
+    $file = public_path('templates/user_template.xlsx');
+    if (file_exists($file)) {
+        return response()->download($file);
+    }
+    return redirect()->back()->withErrors('Template file not found.');
+})->name('users.downloadTemplate');
 
-            // Avatar management
-            Route::post('/{user}/update/avatar', [AvatarController::class, 'update'])
-                ->name('user.update.avatar');
-            Route::post('/{user}/update/avatar/external', [AvatarController::class, 'updateExternal'])
-                ->name('user.update.avatar.external');
+// Wildcard /{user} routes AFTER
+Route::get('/{user}', [UsersController::class, 'view'])->name('users.view');
+Route::get('/{user}/edit', [UsersController::class, 'edit'])->name('users.edit');
+Route::put('/{user}', [UsersController::class, 'update'])->name('users.update');
+Route::delete('/{user}', [UsersController::class, 'destroy'])->name('users.destroy');
 
-            // Sensitive info and bank details
-            Route::put('/{user}/sensitive-info', [SensitiveInfoController::class, 'updateSensitiveInfo'])
-                ->name('users.update.sensitive-info');
-            Route::put('/{user}/bank-details', [BankDetailsController::class, 'updateBankDetails'])
-                ->name('users.update.bank-details');  // Added here with other sensitive info routes
+// User details updates
+Route::put('/{user}/update/details', [DetailsController::class, 'update'])
+    ->name('users.update.details');
+Route::put('/{user}/update/login-details', [LoginDetailsController::class, 'update'])
+    ->name('users.update.login-details');
+Route::put('/{user}/update/counties', [DetailsController::class, 'updateCounties'])
+    ->name('users.update.counties')
+    ->middleware('permission:users.update.counties');
 
-            // Import functionality
-            Route::post('/import', [UsersController::class, 'importUsers'])->name('users.import');
-            Route::get('/template/download', function () {
-                $file = public_path('templates/user_template.xlsx');
-                if (file_exists($file)) {
-                    return response()->download($file);
-                }
-                return redirect()->back()->withErrors('Template file not found.');
-            })->name('users.downloadTemplate');
+// Avatar management
+Route::post('/{user}/update/avatar', [AvatarController::class, 'update'])
+    ->name('user.update.avatar');
+Route::post('/{user}/update/avatar/external', [AvatarController::class, 'updateExternal'])
+    ->name('user.update.avatar.external');
 
-            // Search functionality
-            Route::get('/search', [UsersController::class, 'search'])->name('users.search');
-            Route::get('/deep-search', [UsersController::class, 'deepSearch'])->name('users.deepSearch');
-            Route::get('/list', [UsersController::class, 'list'])->name('users.list');
-
-            // Location data routes
-            Route::get('/get-subcounties', [UsersController::class, 'getSubcounties'])
-                ->name('get.subcounties');
-            Route::get('/get-wards', [UsersController::class, 'getWards'])
-                ->name('get.wards');
+// Sensitive info and bank details
+Route::put('/{user}/sensitive-info', [SensitiveInfoController::class, 'updateSensitiveInfo'])
+    ->name('users.update.sensitive-info');
+Route::put('/{user}/bank-details', [BankDetailsController::class, 'updateBankDetails'])
+    ->name('users.update.bank-details');
 
             // Session management (if using database sessions)
             Route::middleware('session.database')->group(function () {
@@ -288,6 +339,9 @@ Route::group(['middleware' => ['auth', 'verified']], function () {
                 ->name('assign-subordinates.unassign-field-officer');
         });
     });
+
+    Route::put('contracts/{id}/terminate', 'ContractController@terminate')->name('contracts.terminate');
+    Route::put('contracts/{id}/reset', 'ContractController@reset')->name('contracts.reset');
 
 
     Route::get('profile/subcounties', [ProfileController::class, 'getSubcounties'])->name('profile.get.subcounties');
@@ -321,7 +375,7 @@ Route::group(['middleware' => ['auth', 'verified']], function () {
             Route::put('/{asset}', [AssetController::class, 'update'])->name('update');
             Route::delete('/{asset}', [AssetController::class, 'destroy'])->name('destroy');
         });
-
+ 
         // Asset assignment
         Route::prefix('asset-assignment')->name('asset.assignment.')->middleware('permission:assets.assign')->group(function () {
             Route::get('/', [AssetAssignmentController::class, 'index'])->name('index');
@@ -355,6 +409,31 @@ Route::group(['middleware' => ['auth', 'verified']], function () {
         // Helper routes
         Route::get('/assignable-users', [AssetController::class, 'getAssignableUsers'])->name('assets.assignable-users');
         Route::get('/distributable-users', [AssetController::class, 'getDistributableUsers'])->name('assets.distributable-users');
+
+        Route::prefix('compliance')->name('compliance.')->middleware('permission:compliance.view')->group(function () {
+            Route::get('/', [ComplianceController::class, 'index'])->name('index');
+            Route::get('/create', [ComplianceController::class, 'create'])->name('create')->middleware('permission:compliance.create');
+            Route::post('/', [ComplianceController::class, 'store'])->name('store')->middleware('permission:compliance.create');
+
+            Route::prefix('document-acknowledgements')->name('document_acknowledgements.')->middleware('permission:compliance.view')->group(function () {
+                Route::get('/', [DocumentAcknowledgementController::class, 'index'])->name('index');
+                Route::get('/create', [DocumentAcknowledgementController::class, 'create'])->name('create')->middleware('permission:compliance.create');
+                Route::post('/', [DocumentAcknowledgementController::class, 'store'])->name('store')->middleware('permission:compliance.create');
+                Route::get('/{document_acknowledgement}', [DocumentAcknowledgementController::class, 'show'])->name('show');
+                Route::get('/{document_acknowledgement}/edit', [DocumentAcknowledgementController::class, 'edit'])->name('edit')->middleware('permission:compliance.edit');
+                Route::put('/{document_acknowledgement}', [DocumentAcknowledgementController::class, 'update'])->name('update')->middleware('permission:compliance.edit');
+                Route::get('/{document_acknowledgement}/download', [DocumentAcknowledgementController::class, 'download'])->name('download');
+                Route::post('/{document_acknowledgement}/assign', [DocumentAcknowledgementController::class, 'assign'])->name('assign')->middleware('permission:compliance.edit');
+            });
+
+            Route::get('/{compliance}', [ComplianceController::class, 'show'])->name('show');
+            Route::get('/{compliance}/edit', [ComplianceController::class, 'edit'])->name('edit')->middleware('permission:compliance.edit');
+            Route::put('/{compliance}', [ComplianceController::class, 'update'])->name('update')->middleware('permission:compliance.edit');
+            Route::delete('/{compliance}', [ComplianceController::class, 'destroy'])->name('destroy')->middleware('permission:compliance.delete');
+            Route::get('/{compliance}/download', [ComplianceController::class, 'download'])->name('download');
+            Route::post('/{compliance}/renew', [ComplianceController::class, 'renew'])->name('renew')->middleware('permission:compliance.renew');
+        });
+        Route::post('/compliance/categories', [ComplianceController::class, 'storeCategory'])->name('compliance.categories.store')->middleware('permission:compliance.create');
     });
     /**
      * Messages
@@ -386,6 +465,7 @@ Route::group(['middleware' => ['auth', 'verified']], function () {
         Route::get('/emails/filter-users', [EmailController::class, 'filterUsers'])->name('emails.filter_users');
         Route::get('/emails/batch/{batch_number}', [EmailController::class, 'viewBatch'])->name('emails.view_batch');
         Route::get('/emails/{id}/view', [EmailController::class, 'viewSingle'])->name('emails.view_single');
+        Route::get('/emails/{id}/download', [EmailController::class, 'downloadEmail'])->name('emails.download_email');
         Route::post('/emails/send-bulk', [EmailController::class, 'sendBulkEmail'])->name('emails.send_bulk');
         Route::post('/emails/send-select', [EmailController::class, 'sendSelectEmail'])->name('emails.send_select');
         Route::post('/emails/import', [EmailController::class, 'import'])->name('emails.import');
@@ -622,13 +702,19 @@ Route::group(['middleware' => ['auth', 'verified']], function () {
             ->name('contracts.terminate');
     });
 
-    // Contracts List
-    Route::group(['prefix' => 'contractsList', 'middleware' => 'permission:contracts.list'], function () {
-        Route::get('/', 'ContractController@contractsList')->name('contractsList.index');
-        Route::get('{id}/view', 'ContractController@viewContract')
-            ->name('contractsList.view')
-            ->middleware('permission:contracts.manage');
+    // Contracts Dashboard
+    Route::group(['prefix' => 'contracts/dashboard', 'middleware' => 'permission:contracts.manage'], function () {
+        Route::get('/', [ContractDashboardController::class, 'index'])->name('contracts.dashboard');
+        Route::post('/export/{type}', [ContractDashboardController::class, 'export'])->name('contracts.dashboard.export');
     });
+
+    // Contracts List - show assigned contracts
+    Route::get('contractsList', [ContractController::class, 'contractsList'])
+        ->name('contractsList.index')
+        ->middleware('permission:contracts.list');
+    Route::get('contractsList/view/{id}', [ContractController::class, 'viewContract'])
+        ->name('contractsList.view')
+        ->middleware('permission:contracts.manage');
     Route::put('contracts/{id}/reset', 'ContractController@reset')->name('contracts.reset');
     // Contract Approval
     Route::group(['prefix' => 'approval', 'middleware' => 'permission:contracts.approval'], function () {
@@ -677,11 +763,60 @@ Route::group(['middleware' => ['auth', 'verified']], function () {
     });
 });
 
-Route::prefix('projects')->name('projects.')->group(function () {
-    Route::get('/', [ProjectsController::class, 'index'])->name('index');
-    Route::get('/create', [ProjectsController::class, 'create'])->name('create');
-    Route::post('/', [ProjectsController::class, 'store'])->name('store');
+
+
+Route::group(['middleware' => ['auth', 'verified']], function () {
+    Route::prefix('projects')->name('projects.')->group(function () {
+        
+        Route::get('/', [ProjectsController::class, 'index'])->name('index');
+        Route::get('/create', [ProjectsController::class, 'create'])->name('create')
+            ->middleware('permission:project.manage');  
+        Route::post('/', [ProjectsController::class, 'store'])->name('store')
+            ->middleware('permission:project.manage');  
+
+        Route::get('/{project}/assign-users', [ProjectsController::class, 'assignUsers'])
+            ->name('assign-users')
+            ->middleware('permission:project.manage');
+        Route::post('/{project}/assign-users', [ProjectsController::class, 'storeUserAssignments'])
+            ->name('store-assignments')
+            ->middleware('permission:project.manage');
+        Route::delete('/{project}/users/{user}', [ProjectsController::class, 'removeUser'])
+            ->name('remove-user')
+            ->middleware('permission:project.manage');
+        Route::get('/{project}/search-users', [ProjectsController::class, 'searchUsers'])
+            ->name('search-users')
+            ->middleware('permission:project.manage');
+        
+       
+        Route::put('/{project}/set-active', [ProjectsController::class, 'setActive'])
+            ->name('set-active');
+        Route::delete('/clear-active', [ProjectsController::class, 'clearActive'])
+            ->name('clear-active');
+    });
 });
+
+// 
+// Route::group(['middleware' => ['auth', 'verified']], function () {
+    // Route::prefix('projects')->name('projects.')->group(function () {
+    //    
+        // Route::get('/', [ProjectsController::class, 'index'])->name('index');
+        // 
+    // 
+        // Route::get('/create', [ProjectsController::class, 'create'])->name('create');
+        // Route::post('/', [ProjectsController::class, 'store'])->name('store');
+        // 
+    //    
+        // Route::put('/{project}/set-active', [ProjectsController::class, 'setActive'])
+            // ->name('set-active');
+        // Route::delete('/clear-active', [ProjectsController::class, 'clearActive'])
+            // ->name('clear-active');
+    // });
+// });
+
+
+
+
+
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/assign-subordinates', [AssignSubordinatesController::class, 'index'])->name('assign-subordinates.index');
@@ -798,12 +933,12 @@ Route::group(['middleware' => ['web', 'auth']], function () {
             ->name('export.excel')
             ->middleware('permission:training.view');
 
-        // History and attendance management
+      
         Route::get('/{id}/history', [TrainingEventController::class, 'getAttendanceHistory'])
             ->name('history')
             ->middleware('permission:training.view');
 
-        // Attendee management
+      
         Route::post('/attendee/ban', [TrainingEventController::class, 'banAttendee'])
             ->name('ban-attendee')
             ->middleware('permission:training.ban');
@@ -811,26 +946,86 @@ Route::group(['middleware' => ['web', 'auth']], function () {
             ->name('unban-attendee')
             ->middleware('permission:training.ban');
 
-        // Link generation
+      
         Route::post('/{id}/generate-restricted-link', [TrainingEventController::class, 'generateRestrictedLink'])
             ->name('generate-restricted-link')
             ->middleware('permission:training.view');
     });
+
+    // Meeting Management Routes
+    Route::prefix('meetings')->name('meetings.')->group(function () {
+        // View/list routes
+        Route::get('/', [MeetingController::class, 'index'])
+            ->name('index')
+            ->middleware('permission:meetings.view');
+
+        // Create routes
+        Route::get('/create', [MeetingController::class, 'create'])
+            ->name('create')
+            ->middleware('permission:meetings.create');
+        Route::post('/', [MeetingController::class, 'store'])
+            ->name('store')
+            ->middleware('permission:meetings.create');
+
+        // Show/edit/update routes
+        Route::get('/{meeting}', [MeetingController::class, 'show'])
+            ->name('show')
+            ->middleware('permission:meetings.view');
+        Route::get('/{meeting}/edit', [MeetingController::class, 'edit'])
+            ->name('edit')
+            ->middleware('permission:meetings.edit');
+        Route::put('/{meeting}', [MeetingController::class, 'update'])
+            ->name('update')
+            ->middleware('permission:meetings.edit');
+        Route::delete('/{meeting}', [MeetingController::class, 'destroy'])
+            ->name('destroy')
+            ->middleware('permission:meetings.delete');
+
+        // Participant routes
+        Route::post('/{meeting}/participants', [MeetingController::class, 'addParticipant'])
+            ->name('participants.add')
+            ->middleware('permission:meetings.edit');
+        Route::delete('/{meeting}/participants/{participant}', [MeetingController::class, 'removeParticipant'])
+            ->name('participants.remove')
+            ->middleware('permission:meetings.edit');
+        Route::post('/{meeting}/participants/{participant}/status', [MeetingController::class, 'updateParticipantStatus'])
+            ->name('participants.update-status')
+            ->middleware('permission:meetings.edit');
+
+        // Document routes
+        Route::post('/{meeting}/documents', [MeetingController::class, 'uploadDocument'])
+            ->name('documents.upload')
+            ->middleware('permission:meetings.edit');
+        Route::delete('/{meeting}/documents/{document}', [MeetingController::class, 'deleteDocument'])
+            ->name('documents.delete')
+            ->middleware('permission:meetings.edit');
+
+        // Action items routes
+        Route::post('/{meeting}/actions', [MeetingController::class, 'addAction'])
+            ->name('actions.add')
+            ->middleware('permission:meetings.edit');
+        Route::put('/{meeting}/actions/{action}', [MeetingController::class, 'updateAction'])
+            ->name('actions.update')
+            ->middleware('permission:meetings.edit');
+        Route::delete('/{meeting}/actions/{action}', [MeetingController::class, 'deleteAction'])
+            ->name('actions.delete')
+            ->middleware('permission:meetings.edit');
+    });
 });
 
-// Public routes for attendance
+
 Route::prefix('t')->name('training.')->group(function () {
-    // Form access and submission
+   
     Route::get('{slug}', [TrainingEventController::class, 'showForm'])
         ->name('form');
     Route::post('{slug}', [TrainingEventController::class, 'storeAttendance'])
         ->name('store-attendance');
 
-    // Location verification
+   
     Route::post('{slug}/verify-location', [TrainingEventController::class, 'verifyLocation'])
         ->name('verify-location');
 
-    // Phone verification
+   
     Route::post('{slug}/verify-phone', [TrainingEventController::class, 'verifyPhone'])
         ->name('verify-phone');
 
@@ -858,17 +1053,17 @@ Route::group([
     Route::put('/{id}', [RateableItemController::class, 'update'])->name('update');
     Route::delete('/{id}', [RateableItemController::class, 'destroy'])->name('destroy');
 
-    // Analytics & Reporting
+
     Route::get('/{id}/analytics', [RateableItemController::class, 'showAnalytics'])
         ->name('analytics');
 
-    // Data Export
+    
     Route::prefix('{id}/export')->name('export.')->group(function () {
         Route::get('/', [RateableItemController::class, 'export'])->name('default');
         Route::get('/excel', [RateableItemController::class, 'exportExcel'])->name('excel');
     });
 
-    // Rating Moderation
+
     Route::prefix('ratings')->group(function () {
         Route::post('/{id}/hide', [RateableItemController::class, 'hideRating'])
             ->name('hide-rating');
@@ -929,6 +1124,105 @@ Route::group([
     Route::delete('/{report}/attachments/{attachment}', [FieldReportController::class, 'removeAttachment'])
         ->name('remove-attachment');
 });
+
+Route::group([
+    'middleware' => ['web', 'auth', 'permission:general-reports.manage'],
+    'prefix' => 'general-reports',
+    'as' => 'general-reports.'
+], function () {
+    // Basic CRUD routes
+    Route::get('/', [GeneralReportController::class, 'index'])->name('index');
+    Route::get('/dashboard', [GeneralReportController::class, 'dashboard'])->name('dashboard');
+    Route::get('/create', [GeneralReportController::class, 'create'])->name('create');
+    Route::post('/', [GeneralReportController::class, 'store'])->name('store');
+    Route::get('/{report}', [GeneralReportController::class, 'show'])->name('show');
+    Route::get('/{report}/edit', [GeneralReportController::class, 'edit'])->name('edit');
+    Route::put('/{report}', [GeneralReportController::class, 'update'])->name('update');
+    Route::delete('/{report}', [GeneralReportController::class, 'destroy'])->name('destroy');
+
+    // Approval workflow
+    Route::post('/{report}/approve', [GeneralReportController::class, 'approve'])
+        ->name('approve')
+        ->middleware('permission:general-reports.approve');
+
+    // Attachment handling
+    Route::delete('/{report}/attachments/{attachment}', [GeneralReportController::class, 'removeAttachment'])
+        ->name('remove-attachment');
+});
+
+Route::group([
+    'middleware' => ['web', 'auth', 'permission:back-to-office-reports.manage'],
+    'prefix' => 'back-to-office-reports',
+    'as' => 'back-to-office-reports.'
+], function () {
+    // Basic CRUD routes
+    Route::get('/', [BackToOfficeReportController::class, 'index'])->name('index');
+    Route::get('/dashboard', [BackToOfficeReportController::class, 'dashboard'])->name('dashboard');
+    Route::get('/create', [BackToOfficeReportController::class, 'create'])->name('create');
+    Route::post('/', [BackToOfficeReportController::class, 'store'])->name('store');
+    Route::get('/{report}', [BackToOfficeReportController::class, 'show'])->name('show');
+    Route::get('/{report}/edit', [BackToOfficeReportController::class, 'edit'])->name('edit');
+    Route::put('/{report}', [BackToOfficeReportController::class, 'update'])->name('update');
+    Route::delete('/{report}', [BackToOfficeReportController::class, 'destroy'])->name('destroy');
+
+    // Approval workflow
+    Route::post('/{report}/approve', [BackToOfficeReportController::class, 'approve'])
+        ->name('approve')
+        ->middleware('permission:back-to-office-reports.approve');
+
+    // Attachment handling
+    Route::delete('/{report}/attachments/{attachment}', [BackToOfficeReportController::class, 'removeAttachment'])
+        ->name('remove-attachment');
+    // PDF export
+    Route::get('/{report}/export-pdf', [BackToOfficeReportController::class, 'exportPdf'])
+        ->name('exportPdf');
+});
+
+// Static Field Activities page
+Route::get('/field-activities-static', function () {
+    return response()->file(public_path('field-activities-static.html'));
+});
+
+
+
+
+// Field Activities routes (inside auth/verified/check.onboarding/nda middleware)
+Route::group(['middleware' => ['auth', 'verified', 'check.onboarding', 'nda']], function () {
+    Route::get('/field-activities', function() {
+        $user = auth()->user();
+        return view('field-activities.fam', compact('user'));
+    })->name('field-activities.index');
+    Route::get('/field-activities/create', [\App\Http\Controllers\Web\FieldActivityController::class, 'create'])->name('field-activities.create');
+
+    Route::get('/field-activities/fam', function() {
+        $user = auth()->user();
+        // TODO: Replace this demo array with real logic from controller/model
+        $pendingActions = [
+            [
+                'title' => 'Supervisor Review Needed',
+                'subtitle' => 'Community Sensitization · 2 days ago',
+                'button' => 'Review Activity',
+                'button_class' => 'btn-brand',
+                'button_action' => "showView('detail');switchTab('overview')",
+                'border' => '#fde68a',
+                'background' => '#fffbeb',
+            ],
+            [
+                'title' => 'GPS Pending Verification',
+                'subtitle' => 'Mombasa CBD → Nyali route',
+                'button' => 'Update Transport',
+                'button_class' => 'btn-outline-secondary',
+                'button_action' => "showView('detail');switchTab('field')",
+                'border' => 'var(--border)',
+                'background' => 'white',
+            ],
+        ];
+        return view('field-activities.fam', compact('user', 'pendingActions'));
+    })->name('field-activities.fam');
+});
+
+
+
 Route::prefix('bot')
     ->name('bot.')
     ->middleware(['auth', 'verified'])
@@ -961,3 +1255,67 @@ Route::prefix('bot')
 
     });
 
+    // Download routes for HR Policy and NDA
+Route::get('/download/hr-policy', function () {
+    $path = public_path('documents/hr_policy.pdf');
+    if (!file_exists($path)) abort(404);
+    return response()->download($path, 'CPHRM_HR_Policy.pdf');
+})->name('download.hr_policy');
+
+
+Route::get('/download/nda', function () {
+    $path = public_path('documents/nda.pdf');
+    if (!file_exists($path)) abort(404);
+    return response()->download($path, 'CPHRM_NDA.pdf');
+})->name('download.nda');
+
+
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::resource('regions', RegionController::class)
+        ->middleware('permission:regions.manage');
+});
+
+
+// NDA routes
+Route::group(['middleware' => ['auth', 'verified']], function () {
+    Route::get('/nda', [\Vanguard\Http\Controllers\Web\NdaController::class, 'show'])->name('nda.show');
+    Route::post('/nda/accept', [\Vanguard\Http\Controllers\Web\NdaController::class, 'accept'])->name('nda.accept');
+    Route::get('/nda/download', [\Vanguard\Http\Controllers\Web\NdaController::class, 'download'])->name('nda.download');
+});
+
+// Data Collection routes (fixed)
+Route::middleware(['auth'])->group(function () {
+    Route::get('data-collection', [\Vanguard\Http\Controllers\Web\DataCollectionController::class, 'index'])->name('data-collection.index');
+
+    Route::middleware('can:manage,App\\Models\\DataCollection')->prefix('admin/data-collection')->name('admin.data-collection.')->group(function () {
+        Route::get('/', [\Vanguard\Http\Controllers\Web\DataCollectionController::class, 'adminIndex'])->name('index');
+        Route::get('/create', [\Vanguard\Http\Controllers\Web\DataCollectionController::class, 'create'])->name('create');
+        Route::post('/', [\Vanguard\Http\Controllers\Web\DataCollectionController::class, 'store'])->name('store');
+        Route::get('/{data_collection}/edit', [\Vanguard\Http\Controllers\Web\DataCollectionController::class, 'edit'])->name('edit');
+        Route::put('/{data_collection}', [\Vanguard\Http\Controllers\Web\DataCollectionController::class, 'update'])->name('update');
+        Route::delete('/{data_collection}', [\Vanguard\Http\Controllers\Web\DataCollectionController::class, 'destroy'])->name('destroy');
+    });
+});
+
+
+
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/get-wards', [UsersController::class, 'getWards'])->name('get-wards');
+    Route::get('/get-subcounties', [UsersController::class, 'getSubcounties'])->name('get-subcounties');
+});
+
+Route::get('/support/attachment/download/{filename}', [
+    \Vanguard\Http\Controllers\Web\Support\SupportIssueController::class,
+    'downloadAttachment'
+])->name('support.attachment.download')->middleware('auth');
+
+// Data Collection user view route (embedded form)
+Route::get('data-collection/{slug}/view', [\Vanguard\Http\Controllers\Web\DataCollectionController::class, 'view'])->name('data-collection.view');
+
+Route::post('admin/data-collection/{data_collection}/toggle-status', 
+    [\Vanguard\Http\Controllers\Web\DataCollectionController::class, 'toggleStatus'])
+    ->name('admin.data-collection.toggle-status');
+
+Route::get('/api/users/search', [UsersController::class, 'search'])->name('users.search');
+Route::get('/contracts/{contract}/search-users', [ContractController::class, 'searchUsers'])->name('contracts.search-users');
+Route::get('/contracts/search-users', [ContractController::class, 'searchUsers'])->name('contracts.search-users');

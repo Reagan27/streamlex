@@ -5,6 +5,9 @@ namespace Vanguard\Providers;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 use Vanguard\User;
 use Vanguard\Policies\UserPolicy;
+use Vanguard\Projects;
+use Vanguard\DocumentAcknowledgement;
+use Vanguard\DocumentAcknowledgementAssignment;
 
 class AuthServiceProvider extends ServiceProvider
 {
@@ -16,6 +19,10 @@ class AuthServiceProvider extends ServiceProvider
     protected $policies = [
         'Vanguard\Model' => 'Vanguard\Policies\ModelPolicy',
         User::class => UserPolicy::class,
+        DocumentAcknowledgement::class => \Vanguard\Policies\DocumentAcknowledgementPolicy::class,
+        DocumentAcknowledgementAssignment::class => \Vanguard\Policies\DocumentAcknowledgementAssignmentPolicy::class,
+        \App\Models\CoachRequisition::class => \App\Policies\CoachRequisitionPolicy::class,
+        \App\Models\DataCollection::class => \App\Policies\DataCollectionPolicy::class,
     ];
 
     /**
@@ -99,9 +106,24 @@ class AuthServiceProvider extends ServiceProvider
             return false;
         });
 
-        // Gate for viewing sensitive information
+// Gate for viewing sensitive information
         \Gate::define('view-sensitive-info', function (User $user, User $targetUser) {
             return $user->hasRole('Admin') || $user->hasRole('Manager');
+        });
+
+        // Project Gates
+        \Gate::define('manage-project', function (User $user, Projects $project) {
+            if ($user->hasRole('Admin')) {
+                return true;
+            }
+            return $user->hasPermission('project.manage');
+        });
+
+        \Gate::define('assign-project-users', function (User $user, Projects $project) {
+            if ($user->hasRole('Admin')) {
+                return true;
+            }
+            return $user->hasPermission('project.manage');
         });
     }
 }

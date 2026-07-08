@@ -23,7 +23,7 @@ class SupportIssueController extends Controller
      * @return \Illuminate\Contracts\View\View
      */
     public function index(Request $request)
-    {
+    {   $currentUser = auth()->user();
         $user = Auth::user();
         $perPage = $request->input('per_page', 10);
         $search = $request->input('search');
@@ -31,6 +31,8 @@ class SupportIssueController extends Controller
         $status = $request->input('status');
 
         $query = SupportIssue::query();
+
+        $activeProjectId = session('active_project_id') ?? $currentUser->getActiveProjectId();
     
         if ($user->hasRole('Admin')) {
             $query->orderBy('created_at', 'desc');
@@ -47,7 +49,14 @@ class SupportIssueController extends Controller
                 $q->where('id', $countyId);
             });
         }
-    
+
+                // In index() method, add after base query:
+        if ($activeProjectId = session('active_project_id')) {
+            $query->whereHas('user.projects', function ($q) use ($activeProjectId) {
+                $q->where('projects.id', $activeProjectId);
+            });
+        }
+        
         if ($status) {
             $query->where('status', $status);
         }
@@ -236,16 +245,16 @@ class SupportIssueController extends Controller
         return view('support.manage_show', compact('issue'));
     }
 
-    public function downloadAttachment($filename)
-    {
-        $path = 'public/support_attachments/' . $filename;
+    // public function downloadAttachment($filename)
+    // {
+    //     $path = 'public/support_attachments/' . $filename;
 
-        if (Storage::exists($path)) {
-            return Storage::download($path);
-        }
+    //     if (Storage::exists($path)) {
+    //         return Storage::download($path);
+    //     }
 
-        return redirect()->back()->with('error', __('File not found.'));
-    }
+    //     return redirect()->back()->with('error', __('File not found.'));
+    // }
 
     /**
      * Show a specific issue in the user's view.
@@ -311,6 +320,19 @@ class SupportIssueController extends Controller
     
         return redirect()->route('support.manage_show', $issue->id)->with('success', 'Comment added successfully.');
     }
+
+ public function downloadAttachment($filename)
+{
+    // Strip folder prefix if the full path was passed
+    $filename = ltrim(str_replace('support_attachments/', '', $filename), '/');
+    $path = 'support_attachments/' . $filename;
+
+    if (!Storage::disk('public')->exists($path)) {
+        abort(404, 'Attachment not found.');
+    }
+
+    return Storage::disk('public')->download($path);
+}
 
     private function getIssuesData(array $categories): array
     {

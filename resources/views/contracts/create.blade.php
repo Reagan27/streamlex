@@ -76,6 +76,13 @@
     <div class="card-body">
     <form id="contract-form" action="{{ route('contracts.store') }}" method="POST">
         @csrf
+        <div class="form-group mb-4">
+            <label>Contract Type</label>
+            <div>
+                <label class="mr-3"><input type="radio" name="contract_category" value="group" checked> Group</label>
+                <label><input type="radio" name="contract_category" value="individual"> Individual</label>
+            </div>
+        </div>
         <div class="row">
             <div class="col-md-6">
                 <div class="form-group">
@@ -83,35 +90,87 @@
                     <input type="text" class="form-control" id="title" name="title" required>
                 </div>
                 <div class="form-group">
+                    <label for="active_for_onboarding">Active for Onboarding</label>
+                    <div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="active_for_onboarding" name="active_for_onboarding" value="1">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+                <!-- Individual contract fields for left column -->
+                <div class="individual-only" style="display:none">
+                    <div class="form-group">
+                        <label for="user_id">User</label>
+                        <select class="form-control" id="user_id" name="user_id" style="width: 100%;">
+                            <option value="">Select a user</option>
+                            <!-- Options will be loaded dynamically via AJAX -->
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="engagement_type">Engagement Type</label>
+                        <select class="form-control" id="engagement_type" name="engagement_type">
+                            <option value="">Select type</option>
+                            <option value="consultant">Consultant</option>
+                            <option value="employee">Employee</option>
+                            <option value="parttime">Part-time</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="duration_type">Duration Type</label>
+                        <select class="form-control" id="duration_type" name="duration_type">
+                            <option value="">Select duration</option>
+                            <option value="days">Days</option>
+                            <option value="months">Months</option>
+                            <option value="years">Years</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- End left column individual fields -->
+                <div class="form-group group-only">
                     <label for="start_date">Start Date</label>
                     <input type="date" class="form-control" id="start_date" name="start_date" required>
                 </div>
-                <div class="form-group">
+                <div class="form-group group-only">
                     <label for="number_of_days">Number of Days</label>
                     <input type="number" class="form-control" id="number_of_days" name="number_of_days" required>
                 </div>
-                 <div class="form-group">
-            <label for="active_for_onboarding">Active for Onboarding</label>
-            <div>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="active_for_onboarding" name="active_for_onboarding" value="1">
-                    <span class="slider"></span>
-                </label>
-            </div>
-        </div>   
             </div>
             <div class="col-md-6">
-                <div class="form-group">
+                <!-- Individual contract fields for right column -->
+                <div class="individual-only" style="display:none">
+                    <div class="form-group">
+                        <label for="duration_amount">Duration Time</label>
+                        <input type="number" class="form-control" id="duration_amount" name="duration_amount" min="1">
+                        <small class="form-text text-muted">Specify the duration value based on the selected type (years, months, or days).</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="ind_start_date">Start Date</label>
+                        <input type="date" class="form-control" id="ind_start_date" name="ind_start_date">
+                    </div>
+                    <div class="form-group">
+                        <label for="ind_end_date">End Date</label>
+                        <input type="date" class="form-control" id="ind_end_date" name="ind_end_date" readonly>
+                    </div>
+                    <div class="form-group">
+                        <div class="form-group" id="ind_number_of_days_group" style="display:none;">
+                            <label for="ind_number_of_days">Number of Working Days (auto, excl. Sundays)</label>
+                            <input type="number" class="form-control" id="ind_number_of_days" name="ind_number_of_days" readonly>
+                        </div>
+                    </div>
+                </div>
+                <!-- End right column individual fields -->
+                <div class="form-group group-only">
                     <label for="role_id">Role</label>
-                    <select class="form-control" id="role_id" name="role_id" required>
+                    <select class="form-control" id="role_id" name="role_id">
                         @foreach($roles as $role)
                             <option value="{{ $role->id }}">{{ $role->display_name }}</option>
                         @endforeach
                     </select>
                 </div>
-                <div class="form-group">
+                <div class="form-group group-only">
                     <label for="counties">Counties</label>
-                    <select class="form-control" id="counties" name="counties[]" multiple="multiple" required>
+                    <select class="form-control" id="counties" name="counties[]" multiple="multiple">
                         @foreach($counties as $county)
                             <option value="{{ $county->id }}">{{ $county->name }}</option>
                         @endforeach
@@ -122,19 +181,18 @@
                     <select class="form-control" id="status" name="status" required>
                         <option value="draft">Draft</option>
                         <option value="published">Published</option>
-                        <option value="drop">Drop</option>
+                        <option value="dropped">Dropped</option>
                     </select>
                 </div>
-                     <div class="form-group">
-    <label for="project_id">Project <span class="text-danger">*</span></label>
-    <select class="form-control" id="project_id" name="project_id" required>
-        <option value="">Select a Project</option>
-        @foreach(Vanguard\Projects::orderBy('name')->get() as $project)
-            <option value="{{ $project->id }}">{{ $project->name }}</option>
-        @endforeach
-    </select>
-</div>
-
+                <div class="form-group">
+                    <label for="project_id">Project</label>
+                    <select class="form-control" id="project_id" name="project_id">
+                        <option value="">Select a Project</option>
+                        @foreach(Vanguard\Projects::orderBy('name')->get() as $project)
+                            <option value="{{ $project->id }}">{{ $project->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
             </div>
         </div>
    
@@ -191,6 +249,81 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-bs4.min.js"></script>
     <script>
+        function toggleContractType() {
+            var type = document.querySelector('input[name="contract_category"]:checked').value;
+            if (type === 'group') {
+                document.querySelectorAll('.group-only').forEach(e => e.style.display = 'block');
+                document.querySelectorAll('.individual-only').forEach(e => e.style.display = 'none');
+                document.getElementById('role_id').required = true;
+                document.getElementById('counties').required = true;
+                document.getElementById('start_date').required = true;
+                document.getElementById('number_of_days').required = true;
+                document.getElementById('user_id').required = false;
+                // Show group number of days, hide individual
+                var indDaysGroup = document.getElementById('ind_number_of_days_group');
+                if (indDaysGroup) indDaysGroup.style.display = 'none';
+            } else {
+                document.querySelectorAll('.group-only').forEach(e => e.style.display = 'none');
+                document.querySelectorAll('.individual-only').forEach(e => e.style.display = 'block');
+                document.getElementById('role_id').required = false;
+                document.getElementById('counties').required = false;
+                document.getElementById('start_date').required = false;
+                document.getElementById('number_of_days').required = false;
+                document.getElementById('user_id').required = true;
+                // Hide individual number of days
+                var indDaysGroup = document.getElementById('ind_number_of_days_group');
+                if (indDaysGroup) indDaysGroup.style.display = 'none';
+            }
+        }
+        document.querySelectorAll('input[name="contract_category"]').forEach(el => {
+            el.addEventListener('change', toggleContractType);
+        });
+        toggleContractType();
+
+        // Auto-calculate number of days (excluding Sundays)
+        function calcEndDate() {
+            var start = document.getElementById('ind_start_date').value;
+            var type = document.getElementById('duration_type').value;
+            var amount = parseInt(document.getElementById('duration_amount').value, 10);
+            var endInput = document.getElementById('ind_end_date');
+            var daysInput = document.getElementById('ind_number_of_days');
+            if (!start || !type || !amount || amount < 1) {
+                endInput.value = '';
+                daysInput.value = '';
+                return;
+            }
+            var startDate = new Date(start);
+            var endDate = new Date(startDate);
+            if (type === 'days') {
+                // Add days, skipping Sundays
+                var workingDays = 0;
+                while (workingDays < amount) {
+                    if (endDate.getDay() !== 0) {
+                        workingDays++;
+                    }
+                    if (workingDays < amount) {
+                        endDate.setDate(endDate.getDate() + 1);
+                    }
+                }
+            } else if (type === 'months') {
+                endDate.setMonth(endDate.getMonth() + amount);
+                endDate.setDate(endDate.getDate() - 1);
+            } else if (type === 'years') {
+                endDate.setFullYear(endDate.getFullYear() + amount);
+                endDate.setDate(endDate.getDate() - 1);
+            }
+            endInput.value = endDate.toISOString().slice(0,10);
+            // Calculate working days (excluding Sundays)
+            var s = new Date(startDate), e = new Date(endDate), days = 0;
+            while (s <= e) {
+                if (s.getDay() !== 0) days++;
+                s.setDate(s.getDate() + 1);
+            }
+            daysInput.value = days;
+        }
+        document.getElementById('ind_start_date').addEventListener('change', calcEndDate);
+        document.getElementById('duration_type').addEventListener('change', calcEndDate);
+        document.getElementById('duration_amount').addEventListener('input', calcEndDate);
         document.addEventListener('DOMContentLoaded', function() {
             // Initialize Select2
             $('#counties').select2({
@@ -210,6 +343,28 @@
                     ['insert', ['link', 'picture']],
                     ['view', ['fullscreen', 'codeview', 'help']]
                 ]
+            });
+
+            // Initialize Select2 for User dropdown with AJAX
+            $('#user_id').select2({
+                placeholder: 'Select a user',
+                ajax: {
+                    url: '/contracts/search-users',
+                    dataType: 'json',
+                    delay: 500, // Increase delay to 500ms to reduce server load
+                    data: function (params) {
+                        return {
+                            q: params.term // search term
+                        };
+                    },
+                    processResults: function (data) {
+                        return {
+                            results: data
+                        };
+                    },
+                    cache: true
+                },
+                minimumInputLength: 0 // Allow dropdown to fetch data on click without typing
             });
 
             var canvas = document.querySelector("#signature-pad canvas");

@@ -58,6 +58,13 @@
                 </div>
 
                 <ul class="list-group list-group-flush mt-3">
+                    @if(auth()->user()->hasRole(['Admin', 'Manager', 'Finance']))
+                        <li class="list-group-item">
+                            <a href="{{ route('profile', ['user_id' => $user->id, 'tab' => 'employeeinfo']) }}" class="btn btn-sm btn-primary">
+                                View Employee Info
+                            </a>
+                        </li>
+                    @endif
                     @if ($user->phone)
                         <li class="list-group-item">
                             <strong>@lang('Phone'):</strong>

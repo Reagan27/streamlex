@@ -11,9 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('ratings', function (Blueprint $table) {
-            $table->boolean('hidden')->default(false);
-        });
+        // 'hidden' column already exists in ratings table. No action needed.
     }
 
     /**
@@ -21,8 +19,6 @@ return new class extends Migration
      */
     public function down()
     {
-        Schema::table('ratings', function (Blueprint $table) {
-            $table->dropColumn('hidden');
-        });
+        // No action needed. Column was not added here.
     }
 };

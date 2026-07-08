@@ -40,6 +40,7 @@ class Kernel extends HttpKernel
             \Vanguard\Http\Middleware\SetLocale::class,
             \Vanguard\Http\Middleware\ForcePasswordChange::class,
             \Vanguard\Http\Middleware\HandleFileUploadErrors::class,
+            \Vanguard\Http\Middleware\SetActiveProject::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
             'banned',
         ],
@@ -61,6 +62,9 @@ class Kernel extends HttpKernel
      * @var array<string, class-string|string>
      */
     protected $routeMiddleware = [
+        'policy.acknowledgement' => \Vanguard\Http\Middleware\CheckPolicyAcknowledgement::class,
+        'check.nda' => \Vanguard\Http\Middleware\CheckNda::class,
+        'nda' => \Vanguard\Http\Middleware\CheckNda::class,
         'auth' => \Vanguard\Http\Middleware\Authenticate::class,
         'auth.basic' => \Illuminate\Auth\Middleware\AuthenticateWithBasicAuth::class,
         'bindings' => \Illuminate\Routing\Middleware\SubstituteBindings::class,
@@ -81,6 +85,7 @@ class Kernel extends HttpKernel
         'banned' => \Vanguard\Http\Middleware\CheckIfBanned::class,
         'check.onboarding' => \Vanguard\Http\Middleware\CheckOnboarding::class,
         'check.user.role' => \Vanguard\Http\Middleware\CheckUserRole::class,
+        'employeeinfo' => \App\Http\Middleware\EmployeeInfoMiddleware::class,
     ];
 
     /**

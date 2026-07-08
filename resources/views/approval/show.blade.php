@@ -111,37 +111,65 @@
                     <?php endif; ?>
                     
                     <!-- Documents Section -->
-                    @if($userDocuments)
+                    @if($user->documents && $user->documents->count())
                         <div class="mb-4 pb-4 border-bottom">
                             <h6 class="mb-3">@lang('Documents')</h6>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="row">
-                                        <div class="col-3"><strong>@lang('ID Number'):</strong></div>
-                                        <div class="col-9">{{ $userDocuments->id_number }}</div>
+                            @foreach($user->documents as $doc)
+                                <div class="row mb-2">
+                                    <div class="col-md-6">
+                                        <div class="row">
+                                            <div class="col-4"><strong>ID Number:</strong></div>
+                                            <div class="col-8">{{ $doc->id_number }}</div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-4"><strong>KRA PIN:</strong></div>
+                                            <div class="col-8">{{ $doc->kra_pin }}</div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-4"><strong>NSSF Number:</strong></div>
+                                            <div class="col-8">{{ $doc->nssf_number }}</div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-4"><strong>SHIF Number:</strong></div>
+                                            <div class="col-8">{{ $doc->shif_number }}</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="row">
+                                            <div class="col-4"><strong>ID Photo:</strong></div>
+                                            <div class="col-8">
+                                                @if($doc->id_photo_path)
+                                                    <a href="{{ asset('storage/' . $doc->id_photo_path) }}" target="_blank">View ID</a>
+                                                @endif
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-4"><strong>KRA Certificate:</strong></div>
+                                            <div class="col-8">
+                                                @if($doc->kra_certificate_path)
+                                                    <a href="{{ asset('storage/' . $doc->kra_certificate_path) }}" target="_blank">View Certificate</a>
+                                                @endif
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-4"><strong>NSSF Document:</strong></div>
+                                            <div class="col-8">
+                                                @if($doc->nssf_document_path)
+                                                    <a href="{{ asset('storage/' . $doc->nssf_document_path) }}" target="_blank">View NSSF</a>
+                                                @endif
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-4"><strong>SHIF Document:</strong></div>
+                                            <div class="col-8">
+                                                @if($doc->shif_document_path)
+                                                    <a href="{{ asset('storage/' . $doc->shif_document_path) }}" target="_blank">View SHIF</a>
+                                                @endif
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="col-md-6">
-                                    <div class="row">
-                                        <div class="col-3"><strong>@lang('ID Photo'):</strong></div>
-                                        <div class="col-9"><a href="{{ asset('storage/' . $userDocuments->id_photo_path) }}" target="_blank">View ID</a></div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="row">
-                                        <div class="col-3"><strong>@lang('KRA PIN'):</strong></div>
-                                        <div class="col-9">{{ $userDocuments->kra_pin }}</div>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="row">
-                                        <div class="col-3"><strong>@lang('Certificate'):</strong></div>
-                                        <div class="col-9"><a href="{{ asset('storage/' . $userDocuments->kra_certificate_path) }}" target="_blank">View Certificate</a></div>
-                                    </div>
-                                </div>
-                            </div>
+                            @endforeach
                         </div>
                     @endif
                     

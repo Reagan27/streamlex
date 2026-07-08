@@ -224,7 +224,7 @@
                                     </td>
                                     <td>
                                         <span class="editable" data-type="productivity" data-id="{{ $payment->id }}">
-                                            {{ $payment->productivity }}
+                                            {{ isset($payment->calculated_productivity) ? number_format($payment->calculated_productivity, 2) : $payment->productivity }}
                                         </span>
                                     </td>
                                     <td>
@@ -233,7 +233,16 @@
                                         </span>
                                     </td>
                                     <td>
-    @if($payment->invoice_file)
+    {{-- Show FAM Invoice if available --}}
+    @if(isset($payment->fam_invoice) && $payment->fam_invoice)
+        <a href="{{ asset('storage/' . $payment->fam_invoice->file_path) }}" 
+           target="_blank"
+           class="btn btn-sm btn-success"
+           title="Invoice from Field Activity">
+            <i class="fas fa-file-invoice"></i> View (FAM)
+        </a>
+    {{-- Fall back to payment invoices --}}
+    @elseif($payment->invoice_file)
         <a href="{{ asset('storage/' . $payment->invoice_file) }}" 
            target="_blank"
            class="btn btn-sm btn-info">

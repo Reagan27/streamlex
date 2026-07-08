@@ -8,9 +8,9 @@ return new class extends Migration
 {
     public function up()
     {
-        Schema::create('payments', function (Blueprint $table) {
+          Schema::create('payments', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('user_id');
+            $table->unsignedInteger('user_id');
             $table->unsignedBigInteger('payment_cycle_id');
             $table->decimal('amount_payable', 10, 2);
             $table->decimal('tax', 10, 2);
@@ -22,15 +22,15 @@ return new class extends Migration
 
             // Foreign key constraints
             $table->foreign('user_id')
-                  ->references('id')
-                  ->on('users')
-                  ->onDelete('cascade');
+                ->references('id')
+                ->on('users')
+                ->onDelete('cascade');
             
             $table->foreign('payment_cycle_id')
-                  ->references('id')
-                  ->on('payment_cycles')
-                  ->onDelete('cascade');
-        });
+                ->references('id')
+                ->on('payment_cycles')
+                ->onDelete('cascade');
+          });
     }
 
     public function down()

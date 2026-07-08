@@ -37,7 +37,7 @@ class BotController extends Controller
         return view('bot.index', compact('batches', 'stats'));
     }
 
-    public function compose()
+    public function compose()    
     {
         $templates = BotTemplate::where('is_active', true)->get();
         $roles = Role::all();

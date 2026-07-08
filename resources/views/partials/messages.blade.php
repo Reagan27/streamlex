@@ -25,3 +25,17 @@
         </div>
     @endif
 @endif
+
+@if(Session::get('info', false))
+    <div class="alert alert-info alert-notification">
+        <i class="fa fa-info-circle"></i>
+        {{ Session::get('info') }}
+    </div>
+@endif
+
+@if(Session::get('warning', false))
+    <div class="alert alert-warning alert-notification">
+        <i class="fa fa-exclamation-triangle"></i>
+        {{ Session::get('warning') }}
+    </div>
+@endif

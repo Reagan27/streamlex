@@ -14,7 +14,11 @@ class UserDocument extends Model
         'id_number',
         'id_photo_path',
         'kra_pin',
-        'kra_certificate_path'
+        'kra_certificate_path',
+        'shif_number',
+        'shif_document_path',
+        'nssf_number',
+        'nssf_document_path',
     ];
 
     public function user()

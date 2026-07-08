@@ -1,0 +1,11 @@
+.page-wrap {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px 16px;
+}
+@media (max-width: 1400px) {
+    .page-wrap {
+        max-width: 100%;
+        padding: 16px 4vw;
+    }
+}

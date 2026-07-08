@@ -69,8 +69,116 @@ class Payment extends Model
     {
         return $this->invoice_type === 'individual' || $this->invoice_type === null; // null for backward compatibility
     }
+    
     public function getCountyNameAttribute()
     {
         return $this->user->county->name ?? 'N/A';
+    }
+
+    /**
+     * Get the most relevant FAM invoice for this payment.
+     *
+     * First try to find an invoice linked to a field activity that overlaps the
+     * payment cycle. If none exists, fall back to the latest invoice uploaded by
+     * the user so the payments page still shows the document the user submitted.
+     */
+    public function getFieldActivityInvoice()
+    {
+        if (!$this->user_id) {
+            return null;
+        }
+
+        $invoiceQuery = \App\Models\FieldActivityDocument::whereHas('fieldActivity', function($query) {
+                $query->where('created_by', $this->user_id);
+            })
+            ->where('file_type', 'invoice');
+
+        if ($this->paymentCycle) {
+            $invoiceQuery->whereHas('fieldActivity', function ($query) {
+                $cycleStart = $this->paymentCycle->start_date;
+                $cycleEnd = $this->paymentCycle->end_date;
+
+                $query->where(function ($q) use ($cycleStart, $cycleEnd) {
+                    $q->whereBetween('start_date', [$cycleStart, $cycleEnd])
+                      ->orWhereBetween('end_date', [$cycleStart, $cycleEnd])
+                      ->orWhere(function ($qq) use ($cycleStart, $cycleEnd) {
+                          $qq->where('start_date', '<=', $cycleStart)
+                             ->where('end_date', '>=', $cycleEnd);
+                      });
+                });
+            });
+        }
+
+        $invoice = $invoiceQuery->latest('created_at')->first();
+
+        if ($invoice) {
+            return $invoice;
+        }
+
+        return \App\Models\FieldActivityDocument::whereHas('fieldActivity', function($query) {
+                $query->where('created_by', $this->user_id);
+            })
+            ->where('file_type', 'invoice')
+            ->latest('created_at')
+            ->first();
+    }
+
+    public function getFieldActivityInvoiceUrl()
+    {
+        $invoice = $this->getFieldActivityInvoice();
+
+        if (!$invoice) {
+            return null;
+        }
+
+        return url('/api/field-activity-documents/' . $invoice->id . '/view');
+    }
+
+    /**
+     * Calculate productivity from field activities within the payment cycle
+     */
+    public function calculateProductivityFromActivities()
+    {
+        if (!$this->user_id || !$this->paymentCycle) {
+            return 0;
+        }
+
+        $cycle = $this->paymentCycle;
+        
+        // Fetch field activities for this user during this payment cycle
+        // Activities that overlap with the payment cycle period
+        $activities = \App\Models\FieldActivity::where('created_by', $this->user_id)
+            ->whereIn('status', ['approved', 'funded'])
+            ->where(function($query) use ($cycle) {
+                // Activity starts or ends within the payment cycle, or spans across it
+                $query->whereBetween('start_date', [$cycle->start_date, $cycle->end_date])
+                      ->orWhereBetween('end_date', [$cycle->start_date, $cycle->end_date])
+                      ->orWhere(function($q) use ($cycle) {
+                          $q->where('start_date', '<=', $cycle->start_date)
+                            ->where('end_date', '>=', $cycle->end_date);
+                      });
+            })
+            ->get();
+
+        $totalProductivity = 0;
+
+        foreach ($activities as $activity) {
+            // Get filled days count from logs within the payment cycle period
+            $filledDaysCount = $activity->logs()
+                ->whereBetween('date', [$cycle->start_date, $cycle->end_date])
+                ->count();
+
+            $rate = floatval($activity->engagement_rate ?? 0);
+            $engagementType = $activity->engagement_type ?? 'daily';
+
+            // Calculate work based on engagement type
+            if ($engagementType === 'daily' && $filledDaysCount > 0) {
+                $totalProductivity += $rate * $filledDaysCount;
+            } elseif ($engagementType === 'hourly' || $engagementType === 'fixed') {
+                $totalProductivity += $rate;
+            }
+        }
+
+        return $totalProductivity;
     }
 }

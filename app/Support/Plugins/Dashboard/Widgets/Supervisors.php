@@ -18,29 +18,28 @@ class Supervisors extends Widget
     public function __construct(protected readonly UserRepository $users)
     {
     }
-
     public function render(): View
-    {
-        $currentUser = Auth::user();
+{
+    $currentUser = Auth::user();
+    $activeProjectId = session('active_project_id') ?? $currentUser->getActiveProjectId();
 
-        // If the current user is a Supervisor, they shouldn't see this widget
-        if ($currentUser->hasRole('Supervisor')) {
-            return view('plugins.dashboard.widgets.empty');
-        }
+    if ($currentUser->hasRole('Supervisor')) {
+        return view('plugins.dashboard.widgets.empty');
+    }
 
-        $query = $this->users->query()
-            ->whereHas('role', function($q) {
-                $q->where('name', 'Supervisor');
-            });
-            // ->whereExists(function ($query) {
-            //     $query->select(DB::raw(1))
-            //           ->from('admin_contracts')
-            //           ->whereColumn('admin_contracts.role_id', 'users.role_id')
-            //           ->where('admin_contracts.status', 'published')
-            //           ->where(DB::raw('DATE_ADD(admin_contracts.start_date, INTERVAL admin_contracts.number_of_days DAY)'), '>', Carbon::now());
-            // });
+    $query = $this->users->query()
+        ->whereHas('role', function($q) {
+            $q->where('name', 'Supervisor');
+        });
 
-        if ($currentUser->hasRole('Regional_Coordinator')) {
+    // ADD PROJECT FILTER HERE ✅
+    if ($activeProjectId) {
+        $query->whereHas('projects', function ($q) use ($activeProjectId) {
+            $q->where('projects.id', $activeProjectId);
+        });
+    }
+
+    if ($currentUser->hasRole('Regional_Coordinator')) {
             $assignedCountyIds = $currentUser->counties()->pluck('counties.id');
             $query->whereIn('county_id', $assignedCountyIds);
         } elseif ($currentUser->hasRole('County_Coordinator')) {

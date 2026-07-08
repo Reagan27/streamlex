@@ -30,22 +30,35 @@ class SupportIssuesWidget extends Widget
             'categories' => $this->getCategories(),
         ]);
     }
+        private function getIssuesData(): array
+{
+    if (isset($this->issuesData)) {
+        return $this->issuesData;
+    }
 
-    private function getIssuesData(): array
-    {
-        if (isset($this->issuesData)) {
-            return $this->issuesData;
-        }
+    $currentUser = auth()->user();
+    $activeProjectId = session('active_project_id') ?? $currentUser->getActiveProjectId();
 
-        $rawData = DB::table('support_issues')
-            ->join('issues_categories', 'support_issues.category_id', '=', 'issues_categories.id')
-            ->select(
-                'issues_categories.name as category_name',
-                'support_issues.status',
-                DB::raw('COUNT(*) as count')
-            )
-            ->groupBy('category_name', 'status')
-            ->get();
+    $query = DB::table('support_issues')
+        ->join('issues_categories', 'support_issues.category_id', '=', 'issues_categories.id')
+        ->join('users', 'support_issues.user_id', '=', 'users.id')
+        ->select(
+            'issues_categories.name as category_name',
+            'support_issues.status',
+            DB::raw('COUNT(*) as count')
+        );
+
+    // ADD PROJECT FILTER
+    if ($activeProjectId) {
+        $query->whereExists(function ($q) use ($activeProjectId) {
+            $q->select(DB::raw(1))
+              ->from('projects_user')
+              ->whereColumn('projects_user.user_id', 'users.id')
+              ->where('projects_user.project_id', $activeProjectId);
+        });
+    }
+
+    $rawData = $query->groupBy('category_name', 'status')->get();
 
         $categories = $this->getCategories();
         $statuses = ['Pending', 'Open', 'Closed'];

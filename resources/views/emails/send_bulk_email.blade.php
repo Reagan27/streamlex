@@ -3,8 +3,9 @@
 <div class="card">
     <div class="card-body">
         <h5 class="card-title">@lang('Filters')</h5>
-        <form method="POST" action="{{ route('emails.send_bulk') }}" id="bulkEmailForm">
+        <form method="POST" action="{{ route('emails.send_bulk') }}" id="bulkEmailForm" enctype="multipart/form-data">
             @csrf
+            <input type="hidden" name="MAX_FILE_SIZE" value="10485760"><!-- 10MB max -->
 
             <div class="row">
                 <div class="col-md-3">
@@ -30,10 +31,9 @@
                     <label for="roleFilter">@lang('Role')</label>
                     <select name="role" id="roleFilter" class="form-control">
                         <option value="">@lang('Select a Role')</option>
-                        <option value="Regional Coordinator">@lang('Regional Coordinator')</option>
-                        <option value="County Coordinator">@lang('County Coordinator')</option>
-                        <option value="Supervisor">@lang('Supervisor')</option>
-                        <option value="Field Officer">@lang('Field Officer')</option>
+                        @foreach($roles as $roleId => $roleName)
+                            <option value="{{ $roleId }}">{{ $roleName }}</option>
+                        @endforeach
                     </select>
                 </div>
 
@@ -46,6 +46,16 @@
                         @endforeach
                     </select>
                 </div>
+
+                <div class="col-md-3">
+                    <label for="projectFilter">@lang('Project')</label>
+                    <select name="project_id" id="projectFilter" class="form-control">
+                        <option value="">@lang('Select a Project')</option>
+                        @foreach($projects as $projectId => $projectName)
+                            <option value="{{ $projectId }}">{{ $projectName }}</option>
+                        @endforeach
+                    </select>
+                </div>
             </div>
 
             <div class="form-group mt-4">
@@ -54,8 +64,15 @@
             </div>
 
             <div class="form-group mt-4">
-                <label for="emailMessage">@lang('Message')</label>
-                <textarea name="message" class="form-control" rows="5" required></textarea>
+                <label for="message">@lang('Message')</label>
+                <textarea name="message" id="message" class="form-control" rows="5" required></textarea>
+            </div>
+
+            <div class="form-group mt-4">
+                <label for="attachments">@lang('Attachments')</label>
+                <input type="file" name="attachments[]" class="form-control-file" id="attachments" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.rar,.txt" multiple>
+                <small class="form-text text-muted">You may attach multiple files (each up to 10MB).</small>
+                <div id="attachments-list" class="mt-2 text-muted" style="font-size:.95rem">No files selected.</div>
             </div>
 
             <button type="submit" class="btn btn-primary" disabled>@lang('Send Bulk Email')</button>
@@ -63,6 +80,8 @@
     </div>
 </div>
 
+<link href="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-bs4.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-bs4.min.js"></script>
 <script>
 $(document).ready(function() {
     $('#roleFilter, #countyFilter').prop('disabled', false);
@@ -117,5 +136,74 @@ $(document).ready(function() {
             }
         }
     });
+
+    function setupAttachmentManager(inputId, listId) {
+        const input = document.getElementById(inputId);
+        const list = document.getElementById(listId);
+        if (!input || !list || typeof DataTransfer === 'undefined') {
+            return;
+        }
+
+        let selectedFiles = [];
+
+        function fileKey(file) {
+            return [file.name, file.size, file.lastModified].join('|');
+        }
+
+        function renderFiles() {
+            if (!selectedFiles.length) {
+                list.innerHTML = 'No files selected.';
+                return;
+            }
+            list.innerHTML = selectedFiles.map(file => {
+                return `<div class="d-flex justify-content-between align-items-center py-1">
+                    <span>${file.name}</span>
+                    <button type="button" class="btn btn-sm btn-link text-danger remove-file" data-key="${fileKey(file)}">Remove</button>
+                </div>`;
+            }).join('');
+            list.querySelectorAll('.remove-file').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const key = this.dataset.key;
+                    selectedFiles = selectedFiles.filter(file => fileKey(file) !== key);
+                    updateInputFiles();
+                    renderFiles();
+                });
+            });
+        }
+
+        function updateInputFiles() {
+            const dt = new DataTransfer();
+            selectedFiles.forEach(file => dt.items.add(file));
+            input.files = dt.files;
+        }
+
+        input.addEventListener('change', function() {
+            for (const file of Array.from(input.files)) {
+                const key = fileKey(file);
+                if (!selectedFiles.some(existing => fileKey(existing) === key)) {
+                    selectedFiles.push(file);
+                }
+            }
+            updateInputFiles();
+            renderFiles();
+        });
+
+        renderFiles();
+    }
+
+    setupAttachmentManager('attachments', 'attachments-list');
+
+    if (typeof $.fn.summernote !== 'undefined') {
+        $('#message').summernote({
+            height: 220,
+            toolbar: [
+                ['style', ['bold', 'italic', 'underline', 'clear']],
+                ['font', ['strikethrough', 'superscript', 'subscript']],
+                ['para', ['ul', 'ol', 'paragraph']],
+                ['insert', ['link']],
+                ['view', ['fullscreen', 'codeview']]
+            ]
+        });
+    }
 });
 </script>

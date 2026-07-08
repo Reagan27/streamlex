@@ -137,7 +137,9 @@ class UsersController extends Controller
     public function index(Request $request)
     {
         $currentUser = auth()->user();
-        $query = User::with(['role', 'county']);
+        $query = User::with(['role', 'county', 'counties']);
+
+         $activeProjectId = session('active_project_id') ?? $currentUser->getActiveProjectId();
 
         // Base query based on user role
         if ($currentUser->isAdmin() || $currentUser->hasRole('Manager') || $currentUser->hasRole('Finance')) {
@@ -167,6 +169,12 @@ class UsersController extends Controller
             $query->where('id', $currentUser->id);
             $availableCounties = County::where('id', $currentUser->county_id)->get();
         }
+        if ($activeProjectId) {
+        $query->whereHas('projects', function ($q) use ($activeProjectId) {
+            $q->where('projects.id', $activeProjectId);
+        });
+
+        }
 
         // Apply county filter if selected
       if ($request->filled('county_id')) {
@@ -187,8 +195,7 @@ class UsersController extends Controller
         $query->where(function ($q) use ($search) {
             $q->where('first_name', 'like', "%{$search}%")
                 ->orWhere('last_name', 'like', "%{$search}%")
-                ->orWhere('email', 'like', "%{$search}%")
-                ->orWhere('phone', 'like', "%{$search}%");
+                ->orWhere('email', 'like', "%{$search}%");
         });
     }
 
@@ -246,20 +253,16 @@ if ($request->filled('project_id')) {
 
     public function search(Request $request)
     {
-        $query = $this->buildQuery($request);
-        $count = $query->count();
-        $total = User::count();
-        $searchedCount = $count;
+        $query = $request->get('q', '');
 
-        if ($count === 0) {
-            $searchedCount = $query->getQuery()->offset;
-        }
+        $users = User::where('first_name', 'like', "%{$query}%")
+            ->orWhere('last_name', 'like', "%{$query}%")
+            ->orWhere('email', 'like', "%{$query}%")
+            ->orderBy('first_name')
+            ->limit(10)
+            ->get(['id', DB::raw('CONCAT(first_name, " ", last_name) as name'), 'email']);
 
-        return response()->json([
-            'count' => $count,
-            'total' => $total,
-            'searchedCount' => $searchedCount
-        ]);
+        return response()->json($users);
     }
 
     public function deepSearch(Request $request)
@@ -293,7 +296,7 @@ if ($request->filled('project_id')) {
 
     protected function buildQuery(Request $request)
     {
-        $query = User::query()->with(['county', 'role']); // Changed 'roles' to 'role'
+        $query = User::query()->with(['county', 'role', 'counties']);
 
         $this->applyRoleRestrictions($query);
         $this->applySearchFilters($request, $query);
@@ -582,6 +585,9 @@ if ($request->filled('project_id')) {
 
     //     \Log::info('User data before creation:', $data);
 
+    //     $data['first_authentication'] = true;
+    //     $data['initial_password']     = true;
+
     //     // Create the user
     //     $user = $this->users->create($data);
 
@@ -613,12 +619,13 @@ if ($request->filled('project_id')) {
     //     return redirect()->route('users.index')
     //         ->withSuccess(__('User created successfully.'));
     // }
-
-    public function store(CreateUserRequest $request): RedirectResponse
+public function store(CreateUserRequest $request): RedirectResponse
 {
     \Log::info('Raw request data:', $request->all());
 
     $data = $request->validated();
+    // Ensure contract_type is set correctly
+    $data['contract_type'] = $request->input('contract_type', 'group');
 
     // Set default values
     $data['status'] = $data['status'] ?? UserStatus::ACTIVE;
@@ -630,7 +637,7 @@ if ($request->filled('project_id')) {
         ? $request->password 
         : Str::random(12);
 
-    $data['password'] = Hash::make($plainPassword);
+    $data['password'] = $plainPassword; 
 
     // Handle role-specific fields
     $role = Role::findOrFail($request->role_id);
@@ -664,24 +671,23 @@ if ($request->filled('project_id')) {
 
     // Create the user
     $user = $this->users->create($data);
-// After: $user = $this->users->create($data);
 
-// Assign projects
-if ($request->has('projects') && is_array($request->projects)) {
-    $projectData = [];
-    foreach ($request->projects as $projectId) {
-        $isActive = ($request->active_project_id == $projectId);
-        $projectData[$projectId] = ['is_active_project' => $isActive];
+    // Assign projects to user
+    if ($request->has('projects') && is_array($request->projects)) {
+        $projectData = [];
+        foreach ($request->projects as $projectId) {
+            $isActive = ($request->active_project_id == $projectId);
+            $projectData[$projectId] = ['is_active_project' => $isActive];
+        }
+
+        $user->projects()->sync($projectData);
+        
+        \Log::info('Projects assigned to user:', [
+            'user_id' => $user->id,
+            'projects' => $projectData
+        ]);
     }
 
-    $user->projects()->sync($projectData);
-
-    // if ($request->filled('active_project_id')) {
-    //     $user->update(['current_project_id' => $request->active_project_id]);
-    // } elseif (!empty($request->projects)) {
-    //     $user->update(['current_project_id' => $request->projects[0]]);
-    // }
-}
     \Log::info('User created:', $user->toArray());
 
     // Sync counties for Regional Coordinator
@@ -694,14 +700,22 @@ if ($request->has('projects') && is_array($request->projects)) {
         }
     }
 
-    // Fire Registered event (good for listeners)
+    // Fire Registered event
     event(new Registered($user));
 
-    // ALWAYS send welcome email when admin creates user (ignore reg_email_confirmation)
+    // Send welcome email
     $this->sendAdminWelcomeEmail($user, $plainPassword);
 
+    // Set active project in session for onboarding if assigned
+    if ($request->has('active_project_id') && $request->active_project_id) {
+        $user->setActiveProject(\Vanguard\Projects::find($request->active_project_id));
+    }
+
     return redirect()->route('users.index')
-        ->withSuccess(__('User created successfully. Welcome email with login details has been sent.'));
+        ->with('success', [
+            __('User created successfully. Welcome email with login details has been sent.'),
+            __('Generated password: :password', ['password' => $plainPassword])
+        ]);
 }
 
 
@@ -767,7 +781,6 @@ private function sendAdminWelcomeEmail(User $user, string $plainPassword): void
         WardRepository $wardRepository
     ): View {
         try {
-            // Fetch and format roles
             $roles = $roleRepository->all()->map(function ($role) {
                 return [
                     'id' => $role->id,
@@ -776,7 +789,6 @@ private function sendAdminWelcomeEmail(User $user, string $plainPassword): void
                 ];
             });
 
-            // Fetch location data
             $counties = $countyRepository->lists();
             $subcounties = $user->county_id
                 ? $subcountyRepository->lists($user->county_id)
@@ -785,12 +797,10 @@ private function sendAdminWelcomeEmail(User $user, string $plainPassword): void
                 ? $wardRepository->lists($user->subcounty_id)
                 : collect();
 
-            // Get user statuses and check permissions
             $statuses = UserStatus::lists();
             $authUser = auth()->user();
             $canViewSensitiveInfo = $authUser->isAdmin() || $authUser->hasRole('Manager');
 
-            // Build base view data
             $viewData = [
                 'user' => $user,
                 'roles' => $roles,
@@ -800,15 +810,12 @@ private function sendAdminWelcomeEmail(User $user, string $plainPassword): void
                 'wards' => $wards->toArray(),
                 'canViewSensitiveInfo' => $canViewSensitiveInfo,
                 'banks' => \Vanguard\Bank::orderBy('name')->get(),
-
             ];
 
-            // Add Regional Coordinator specific data
             if ($user->role->name === 'Regional_Coordinator') {
                 $viewData['assignedCounties'] = $user->counties->pluck('id')->toArray();
             }
 
-            // Add sensitive information if authorized
             if ($canViewSensitiveInfo) {
                 $viewData['bankDetails'] = $user->bankDetails;
                 $viewData['userDocuments'] = $user->documents;
@@ -852,7 +859,8 @@ private function sendAdminWelcomeEmail(User $user, string $plainPassword): void
                 'last_name',
                 'email',
                 'phone',
-                'status'
+                'status',
+                'contract_type'
             ]);
 
             // Initialize location data with current values to prevent nulling
@@ -1016,8 +1024,6 @@ private function sendAdminWelcomeEmail(User $user, string $plainPassword): void
                 $user->counties()->detach();
             }
 
-            // Remove any other relationships
-            $user->activities()->delete();  // If you have activities
             $user->documents()->delete();   // If you have documents
             $user->bankDetails()->delete(); // If you have bank details
 
@@ -1115,6 +1121,8 @@ private function sendAdminWelcomeEmail(User $user, string $plainPassword): void
             'email' => ['email', 'Email', 'EMAIL'],
             'phone' => ['phone', 'Phone', 'PHONE', 'Contact', 'CONTACT'],
             'county_id' => ['county_id', 'County ID', 'COUNTY_ID', 'county id', 'COUNTY ID'],
+            'role_id' => ['role_id', 'Role ID', 'ROLE_ID', 'role id', 'ROLE ID'],
+            'project_id' => ['project_id', 'Project ID', 'PROJECT_ID', 'project id', 'PROJECT ID'],
         ];
 
         $headerMap = [];
@@ -1128,7 +1136,8 @@ private function sendAdminWelcomeEmail(User $user, string $plainPassword): void
             }
         }
 
-        foreach (array_keys($headerVariants) as $requiredHeader) {
+        $requiredHeaders = ['first_name', 'last_name', 'email', 'phone', 'county_id', 'role_id', 'project_id'];
+        foreach ($requiredHeaders as $requiredHeader) {
             if (!isset($headerMap[$requiredHeader])) {
                 return redirect()->back()->withErrors("The uploaded file is missing a required header: {$requiredHeader}");
             }
@@ -1145,7 +1154,9 @@ private function sendAdminWelcomeEmail(User $user, string $plainPassword): void
                 'email' => $row[$headerMap['email']] ?? null,
                 'phone' => $row[$headerMap['phone']] ?? null,
                 'county_id' => $row[$headerMap['county_id']] ?? null,
+                'role_id' => $row[$headerMap['role_id']] ?? null,
             ];
+            $projectId = $row[$headerMap['project_id']] ?? null;
 
             $validator = Validator::make($userData, [
                 'first_name' => 'required|string|max:255',
@@ -1153,6 +1164,7 @@ private function sendAdminWelcomeEmail(User $user, string $plainPassword): void
                 'email' => 'required|email|max:255|unique:users,email',
                 'phone' => 'required|string|max:20|unique:users,phone',
                 'county_id' => 'required|integer|exists:counties,id',
+                'role_id' => 'required|integer|exists:roles,id',
             ]);
 
             if ($validator->fails()) {
@@ -1160,15 +1172,23 @@ private function sendAdminWelcomeEmail(User $user, string $plainPassword): void
                 continue;
             }
 
+            $plainPassword = Str::random(10);
             $userData['username'] = $userData['email'];
-            $userData['role_id'] = 6;
             $userData['role_status'] = 0;
-            $userData['password'] = ('SELISTAR');
+            $userData['password'] = $plainPassword;
             $userData['status'] = UserStatus::UNCONFIRMED;
             $userData['email_verified_at'] = now();
+            $userData['first_authentication'] = true;
+            $userData['initial_password'] = true;
 
             try {
-                $this->users->create($userData);
+                $user = $this->users->create($userData);
+                // Assign project
+                if ($projectId) {
+                    $user->projects()->attach($projectId, ['is_active_project' => true]);
+                }
+                // Send onboarding email
+                $this->sendAdminWelcomeEmail($user, $plainPassword);
             } catch (\Exception $e) {
                 $errors[$index + 1] = ['Error inserting user: ' . $e->getMessage()];
             }
@@ -1196,12 +1216,12 @@ private function sendAdminWelcomeEmail(User $user, string $plainPassword): void
             $assignedCountyIds = $currentUser->counties()->pluck('counties.id');
             $query->whereIn('county_id', $assignedCountyIds)
                 ->whereHas('role', function ($q) {
-                    $q->whereIn('name', ['County_Coordinator', 'Supervisor', 'Field_Officer']);
+                    $q->whereIn('name', ['County_Coordinator', 'Supervisor', 'Field_Officer', 'User']);
                 });
         } elseif ($currentUser->role->name === 'County_Coordinator') {
             $query->where('county_id', $currentUser->county_id)
                 ->whereHas('role', function ($q) {
-                    $q->whereIn('name', ['Supervisor', 'Field_Officer']);
+                    $q->whereIn('name', ['Supervisor', 'Field_Officer', 'User']);
                 });
         } elseif ($currentUser->role->name === 'Supervisor') {
             $query->where('supervisor_id', $currentUser->id)

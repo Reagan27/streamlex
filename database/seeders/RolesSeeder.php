@@ -27,5 +27,12 @@ class RolesSeeder extends Seeder
             'description' => 'Default system user.',
             'removable' => false,
         ]);
+
+        Role::create([
+            'name' => 'Logsheet Officer',
+            'display_name' => 'Logsheet Officer',
+            'description' => 'Can add and manage field activity logsheets only.',
+            'removable' => true,
+        ]);
     }
 }

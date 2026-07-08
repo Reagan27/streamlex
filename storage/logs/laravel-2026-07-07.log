@@ -1,0 +1,22 @@
+[2026-07-07 17:47:14] production.INFO: HTTP REQUEST {"method":"GET","url":"http://127.0.0.1:8000","route":null,"action":null} 
+[2026-07-07 17:47:14] production.INFO: HTTP REQUEST {"method":"GET","url":"http://127.0.0.1:8000","route":"dashboard","action":"Vanguard\\Http\\Controllers\\Web\\DashboardController@index"} 
+[2026-07-07 17:47:16] production.INFO: Available widgets {"widgets":{"Illuminate\\Support\\Collection":[{"width":"3"},{"width":"3"},{"width":"3"},{"width":"3"},{"width":"12"},{"width":"8"},{"width":"4"},{"width":"4"},{"width":"4"},{"width":"4"}]}} 
+[2026-07-07 17:47:20] production.INFO: MessageWidget query result {"user_id":1,"role":"Admin","message_count":0} 
+[2026-07-07 17:48:09] production.INFO: HTTP REQUEST {"method":"GET","url":"http://127.0.0.1:8000/emails","route":null,"action":null} 
+[2026-07-07 17:48:09] production.INFO: HTTP REQUEST {"method":"GET","url":"http://127.0.0.1:8000/emails","route":"emails.index","action":"Vanguard\\Http\\Controllers\\Web\\Emails\\EmailController@index"} 
+[2026-07-07 17:48:26] production.INFO: HTTP REQUEST {"method":"GET","url":"http://127.0.0.1:8000/emails/send-bulk","route":null,"action":null} 
+[2026-07-07 17:48:26] production.INFO: HTTP REQUEST {"method":"GET","url":"http://127.0.0.1:8000/emails/send-bulk","route":"emails.send_bulk","action":"Vanguard\\Http\\Controllers\\Web\\Emails\\EmailController@showSendBulkEmail"} 
+[2026-07-07 17:48:32] production.INFO: HTTP REQUEST {"method":"GET","url":"http://127.0.0.1:8000/emails/send-bulk","route":null,"action":null} 
+[2026-07-07 17:48:32] production.INFO: HTTP REQUEST {"method":"GET","url":"http://127.0.0.1:8000/emails/send-bulk","route":"emails.send_bulk","action":"Vanguard\\Http\\Controllers\\Web\\Emails\\EmailController@showSendBulkEmail"} 
+[2026-07-07 17:49:05] production.INFO: HTTP REQUEST {"method":"POST","url":"http://127.0.0.1:8000/emails/send-bulk","route":null,"action":null} 
+[2026-07-07 17:49:05] production.INFO: HTTP REQUEST {"method":"POST","url":"http://127.0.0.1:8000/emails/send-bulk","route":"emails.send_bulk","action":"Vanguard\\Http\\Controllers\\Web\\Emails\\EmailController@sendBulkEmail"} 
+[2026-07-07 17:49:07] production.INFO: Sending email to {"email":"hr@selistar.africa"} 
+[2026-07-07 17:49:08] production.INFO: Sending email to hr@selistar.africa with subject: Test Email  
+[2026-07-07 17:49:20] production.INFO: Email sent successfully to hr@selistar.africa  
+[2026-07-07 17:49:20] production.INFO: Sending email to {"email":"oindasi8@gmail.com"} 
+[2026-07-07 17:49:20] production.INFO: Sending email to oindasi8@gmail.com with subject: Test Email  
+[2026-07-07 17:49:22] production.INFO: Email sent successfully to oindasi8@gmail.com  
+[2026-07-07 17:49:26] production.INFO: HTTP REQUEST {"method":"GET","url":"http://127.0.0.1:8000/emails","route":null,"action":null} 
+[2026-07-07 17:49:26] production.INFO: HTTP REQUEST {"method":"GET","url":"http://127.0.0.1:8000/emails","route":"emails.index","action":"Vanguard\\Http\\Controllers\\Web\\Emails\\EmailController@index"} 
+[2026-07-07 17:49:43] production.INFO: HTTP REQUEST {"method":"GET","url":"http://127.0.0.1:8000/emails/batch/bulk_email_6a4d3c12dee42","route":null,"action":null} 
+[2026-07-07 17:49:43] production.INFO: HTTP REQUEST {"method":"GET","url":"http://127.0.0.1:8000/emails/batch/bulk_email_6a4d3c12dee42","route":"emails.view_batch","action":"Vanguard\\Http\\Controllers\\Web\\Emails\\EmailController@viewBatch"} 

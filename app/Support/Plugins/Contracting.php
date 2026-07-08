@@ -15,6 +15,11 @@ class Contracting extends Plugin
             ->active('contracts*')
             ->permissions('contracts.manage');
 
+        $dashboard = Item::create(__('Contracts Dashboard'))
+            ->route('contracts.dashboard')
+            ->active('contracts/dashboard*')
+            ->permissions('contracts.manage');
+
         $approval = Item::create(__('Contracts Approval'))
             ->route('approval.index')
             ->active('approval*')
@@ -42,7 +47,8 @@ class Contracting extends Plugin
             })
             ->addChildren([
                 $contracts,
-                $approval,       
+                $dashboard,
+                $approval,
                 $allContracts,
                 $myContract
             ]);

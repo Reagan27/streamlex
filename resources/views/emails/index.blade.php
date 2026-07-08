@@ -21,6 +21,14 @@
 
         <div id="emailContent" class="mt-4"></div>
 
+        <form method="GET" class="form-inline mb-3">
+            <input type="text" name="search" class="form-control mr-2" value="{{ request('search') }}" placeholder="Search batch, sender, or category">
+            <button type="submit" class="btn btn-outline-secondary">@lang('Search')</button>
+            @if(request('search'))
+                <a href="{{ route('emails.index') }}" class="btn btn-link">@lang('Clear')</a>
+            @endif
+        </form>
+
         <div class="table-responsive mt-4">
             <table class="table table-bordered table-striped">
                 <thead>

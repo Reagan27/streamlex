@@ -5,6 +5,8 @@
 
 @section('styles')
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <!-- FontAwesome for password view icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" integrity="sha512-dyZtM6zQ+1Q6Xo8XzQ+1Q6Xo8XzQ+1Q6Xo8XzQ+1Q6Xo8XzQ+1Q6Xo8XzQ+1Q6Xo8XzQ+1Q6Xo8XzQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 @endsection
 
 @section('breadcrumbs')
@@ -48,6 +50,15 @@
             <small class="form-text text-muted">
                 Hold Ctrl/Cmd to select multiple select. First selected = active project.
             </small>
+        </div>
+
+        <div class="form-group">
+            <label for="contract_type">@lang('Contract Type')</label>
+            <select name="contract_type" id="contract_type" class="form-control input-solid">
+                <option value="group" {{ old('contract_type', 'group') == 'group' ? 'selected' : '' }}>@lang('Group')</option>
+                <option value="individual" {{ old('contract_type') == 'individual' ? 'selected' : '' }}>@lang('Individual')</option>
+            </select>
+            <small class="form-text text-muted">@lang('Select whether this user is assigned to a group or individual contract.')</small>
         </div>
 
         <div class="form-group">
@@ -184,12 +195,12 @@
             <label for="password">{{ __('Password') }}</label>
             <div class="input-group">
                 <input type="password" class="form-control input-solid" id="password" name="password">
-                <div class="input-group-append">
-                    <span class="input-group-text">
-                        <i class="fas fa-eye" id="togglePassword" style="cursor: pointer;"></i>
-                    </span>
-                </div>
+                <button type="button" class="btn btn-outline-secondary" id="togglePassword" tabindex="-1" title="Show/Hide Password">
+                    <i class="fas fa-eye"></i>
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="autogenPassword" tabindex="-1" style="margin-left:8px;">Auto-generate</button>
             </div>
+            <small class="form-text text-muted">Leave blank to auto-generate, or click the button to generate now.</small>
         </div>
     </div>
     
@@ -199,11 +210,9 @@
             <label for="password_confirmation">{{ __('Confirm Password') }}</label>
             <div class="input-group">
                 <input type="password" class="form-control input-solid" id="password_confirmation" name="password_confirmation">
-                <div class="input-group-append">
-                    <span class="input-group-text">
-                        <i class="fas fa-eye" id="toggleConfirmPassword" style="cursor: pointer;"></i>
-                    </span>
-                </div>
+                <button type="button" class="btn btn-outline-secondary" id="toggleConfirmPassword" tabindex="-1" title="Show/Hide Password">
+                    <i class="fas fa-eye"></i>
+                </button>
             </div>
         </div>
     </div>
@@ -228,23 +237,45 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script>
 
+
 document.addEventListener('DOMContentLoaded', function() {
-    const togglePassword = document.querySelector('#togglePassword');
-    const password = document.querySelector('#password');
-    const toggleConfirmPassword = document.querySelector('#toggleConfirmPassword');
-    const confirmPassword = document.querySelector('#password_confirmation');
+    const password = document.getElementById('password');
+    const confirmPassword = document.getElementById('password_confirmation');
+    const togglePasswordBtn = document.getElementById('togglePassword');
+    const togglePasswordIcon = togglePasswordBtn ? togglePasswordBtn.querySelector('i') : null;
+    const toggleConfirmPasswordBtn = document.getElementById('toggleConfirmPassword');
+    const toggleConfirmPasswordIcon = toggleConfirmPasswordBtn ? toggleConfirmPasswordBtn.querySelector('i') : null;
+    const autogenPasswordBtn = document.getElementById('autogenPassword');
 
-    togglePassword.addEventListener('click', function() {
-        const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
-        password.setAttribute('type', type);
-        this.classList.toggle('fa-eye-slash');
-    });
-
-    toggleConfirmPassword.addEventListener('click', function() {
-        const type = confirmPassword.getAttribute('type') === 'password' ? 'text' : 'password';
-        confirmPassword.setAttribute('type', type);
-        this.classList.toggle('fa-eye-slash');
-    });
+    if (togglePasswordBtn && password) {
+        togglePasswordBtn.addEventListener('click', function() {
+            const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
+            password.setAttribute('type', type);
+            if (togglePasswordIcon) togglePasswordIcon.classList.toggle('fa-eye-slash');
+        });
+    }
+    if (toggleConfirmPasswordBtn && confirmPassword) {
+        toggleConfirmPasswordBtn.addEventListener('click', function() {
+            const type = confirmPassword.getAttribute('type') === 'password' ? 'text' : 'password';
+            confirmPassword.setAttribute('type', type);
+            if (toggleConfirmPasswordIcon) toggleConfirmPasswordIcon.classList.toggle('fa-eye-slash');
+        });
+    }
+    if (autogenPasswordBtn && password && confirmPassword) {
+        autogenPasswordBtn.addEventListener('click', function() {
+            function randomPassword(length = 12) {
+                const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*';
+                let pass = '';
+                for (let i = 0; i < length; i++) {
+                    pass += chars.charAt(Math.floor(Math.random() * chars.length));
+                }
+                return pass;
+            }
+            const newPass = randomPassword();
+            password.value = newPass;
+            confirmPassword.value = newPass;
+        });
+    }
 });
 
 $(document).ready(function () {
@@ -260,19 +291,23 @@ $('#projects').select2({
         minimumResultsForSearch: Infinity
     }).val(null).trigger('change');
 
-    // Function to load subcounties
     function loadSubcounties(countyId, targetSubcounty) {
-        if (countyId) {
-            $.get('{{ route("get.subcounties") }}', { county_id: countyId }, function (data) {
+    if (countyId) {
+        $.get('{{ route("get.subcounties") }}', { county_id: countyId })
+            .done(function (data) {
                 targetSubcounty.empty().append('<option value="">Select a Subcounty</option>');
                 $.each(data, function (key, value) {
                     targetSubcounty.append(`<option value="${key}">${value}</option>`);
                 });
+            })
+            .fail(function(xhr) {
+                console.error('Failed to load subcounties:', xhr.responseText);
             });
-        } else {
-            targetSubcounty.empty().append('<option value="">Select a Subcounty</option>');
-        }
+    } else {
+        targetSubcounty.empty().append('<option value="">Select a Subcounty</option>');
     }
+}
+   
 
     // Function to load wards
     function loadWards(subcountyId, targetWard) {
@@ -306,12 +341,20 @@ $('#projects').select2({
             case 'County_Coordinator':
                 $('#county-coordinator-section').show();
                 break;
-            case 'Supervisor':
-                $('#supervisor-section').show();
-                break;
-            case 'Field_Officer':
-                $('#field-officer-section').show();
-                break;
+                case 'Supervisor':
+    $('#supervisor-section').show();
+    var supervisorCountyId = $('#supervisor-county').val();
+    if (supervisorCountyId) {
+        loadSubcounties(supervisorCountyId, $('#supervisor-subcounty'));
+    }
+    break;
+case 'Field_Officer':
+    $('#field-officer-section').show();
+    var fieldOfficerCountyId = $('#field-officer-county').val();
+    if (fieldOfficerCountyId) {
+        loadSubcounties(fieldOfficerCountyId, $('#field-officer-subcounty'));
+    }
+    break;
             default:
                 console.log('Unknown role:', selectedRole);
         }

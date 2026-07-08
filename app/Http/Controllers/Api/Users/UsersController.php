@@ -5,10 +5,6 @@ namespace Vanguard\Http\Controllers\Api\Users;
 use Illuminate\Http\Request;
 use Spatie\QueryBuilder\AllowedFilter;
 use Spatie\QueryBuilder\QueryBuilder;
-use Vanguard\Jobs\SendEmailJob;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Auth\Events\Registered;
 use Vanguard\Events\User\Banned;
 use Vanguard\Events\User\Deleted;
 use Vanguard\Events\User\UpdatedByAdmin;
@@ -46,56 +42,22 @@ class UsersController extends ApiController
         return UserResource::collection($users);
     }
 
-    // public function store(CreateUserRequest $request): UserResource
-    // {
-    //     $data = $request->only([
-    //         'email', 'password', 'username', 'first_name', 'last_name',
-    //         'phone', 'address', 'country_id', 'birthday', 'role_id',
-    //     ]);
+    public function store(CreateUserRequest $request): UserResource
+    {
+        $data = $request->only([
+            'email', 'password', 'username', 'first_name', 'last_name',
+            'phone', 'address', 'country_id', 'birthday', 'role_id',
+        ]);
 
-    //     $data += [
-    //         'status' => UserStatus::ACTIVE,
-    //         'email_verified_at' => $request->verified ? now() : null,
-    //     ];
+        $data += [
+            'status' => UserStatus::ACTIVE,
+            'email_verified_at' => $request->verified ? now() : null,
+        ];
 
-    //     $user = $this->users->create($data);
+        $user = $this->users->create($data);
 
-    //     return new UserResource($user);
-    // }
-
-
-public function store(CreateUserRequest $request): UserResource
-{
-    $data = $request->only([
-        'email', 'password', 'username', 'first_name', 'last_name',
-        'phone', 'address', 'country_id', 'birthday', 'role_id',
-    ]);
-
-    // Handle password (in case it's sent hashed or plain)
-    if ($request->filled('password')) {
-        $plainPassword = $request->password;
-        $data['password'] = Hash::make($request->password);
-    } else {
-        // Generate random password if not provided
-        $plainPassword = Str::random(12);
-        $data['password'] = Hash::make($plainPassword);
+        return new UserResource($user);
     }
-
-    $data += [
-        'status' => UserStatus::ACTIVE,
-        'email_verified_at' => $request->boolean('verified', true) ? now() : null,
-    ];
-
-    $user = $this->users->create($data);
-
-    // Fire Laravel Registered event (for any listeners)
-    event(new Registered($user));
-
-    // Send Welcome Email with login credentials
-    $this->sendApiCreatedUserWelcomeEmail($user, $plainPassword);
-
-    return new UserResource($user->load('role'));
-}
 
     public function show($id): UserResource
     {
@@ -146,23 +108,28 @@ public function store(CreateUserRequest $request): UserResource
 
         return $this->respondWithSuccess();
     }
-    private function sendApiCreatedUserWelcomeEmail($user, $plainPassword)
-{
-    $subject = "Welcome to " . config('app.name') . " – Your Account is Ready";
 
-    $message = view('emails.welcome_new_user', [
-        'user' => $user,
-        'password' => $plainPassword,
-        'loginUrl' => config('app.frontend_url', url('/login')), // e.g. your mobile/web app login
-    ])->render();
+    /**
+     * Search for users by name or email.
+     */
+    public function search(Request $request)
+    {
+        $query = $request->get('q', '');
 
-    dispatch(new SendEmailJob([
-        'recipient'  => $user->email,
-        'subject'    => $subject,
-        'message'    => $message,
-        'user_id'    => $user->id,
-        'category'   => 'api_user_creation',
-        'status'     => Email::STATUS_PENDING,
-    ]));
-}
+        $users = User::query()
+            ->where('first_name', 'like', "%{$query}%")
+            ->orWhere('last_name', 'like', "%{$query}%")
+            ->orWhere('email', 'like', "%{$query}%")
+            ->limit(10)
+            ->get(['id', 'first_name', 'last_name']);
+
+        return response()->json(
+            $users->map(function ($user) {
+                return [
+                    'id' => $user->id,
+                    'name' => $user->first_name . ' ' . $user->last_name,
+                ];
+            })
+        );
+    }
 }

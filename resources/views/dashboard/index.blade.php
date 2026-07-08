@@ -17,6 +17,13 @@
 @section('content')
     @include('partials.messages')
 
+
+@if($contractSignature && !in_array($contractSignature->status, ['approved', 'accepted']))
+    <div class="alert alert-warning text-center my-4">
+        <strong>Your onboarding is complete.</strong> Please wait for your contract to be approved by an administrator before proceeding.
+    </div>
+@endif
+
 <div class="row">
     @foreach (\Vanguard\Plugins\Vanguard::availableWidgets(auth()->user()) as $widget)
         @if ($widget->width)

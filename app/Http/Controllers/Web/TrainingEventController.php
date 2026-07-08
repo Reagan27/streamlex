@@ -27,7 +27,7 @@ class TrainingEventController extends Controller
     }
 
     public function index(Request $request)
-    {
+    {   $currentUser = auth()->user();
         $query = TrainingEvent::with(['attendances', 'county'])
             ->withCount(['attendances as attendances_count' => function($query) {
                 $query->select(DB::raw('count(distinct id_number)'));
@@ -35,6 +35,8 @@ class TrainingEventController extends Controller
     
         $user = auth()->user();
         $userRole = $user->role;
+
+        $activeProjectId = session('active_project_id') ?? $currentUser->getActiveProjectId();
     
         if ($userRole->name === 'Regional_Coordinator') {
             $assignedCountyIds = DB::table('regional_coordinator_counties')
@@ -45,6 +47,14 @@ class TrainingEventController extends Controller
         }
         elseif ($userRole->name === 'County_Coordinator') {
             $query->where('county_id', $user->county_id);
+        }
+
+
+        if ($activeProjectId = session('active_project_id')) {
+            // Filter events by users in active project
+            $query->whereHas('attendances.user.projects', function ($q) use ($activeProjectId) {
+                $q->where('projects.id', $activeProjectId);
+            });
         }
     
         if ($request->filled('search')) {

@@ -4,20 +4,8 @@ namespace Vanguard;
 
 use Illuminate\Database\Eloquent\Relations\Pivot;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Vanguard\User;
-
-class ProjectUser extends Model
+class ProjectUser extends Pivot
 {
-    /**
-     * Indicates if the IDs are auto-incrementing.
-     *
-     * @var bool
-     */
-    public $incrementing = true;
-
     /**
      * The table associated with the model.
      *
@@ -52,7 +40,7 @@ class ProjectUser extends Model
      */
     public function project()
     {
-        return $this->belongsTo(Project::class);
+        return $this->belongsTo(Projects::class, 'project_id');
     }
 
     /**

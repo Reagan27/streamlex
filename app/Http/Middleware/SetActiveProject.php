@@ -1,29 +1,29 @@
 <?php
+
 namespace Vanguard\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Vanguard\Projects;
 
-class setActiveProject {
-    // app/Http/Middleware/SetActiveProject.php
-public function handle($request, $next)
+class SetActiveProject 
 {
-    if (auth()->check()) {
-        $user = auth()->user();
-
-        // Admin/Manager bypass
-        if ($user->hasRole(['Admin', 'Manager'])) {
-            return $next($request);
+    public function handle(Request $request, Closure $next)
+    {
+        if (auth()->check()) {
+            $user = auth()->user();
+            
+            // Get active project ID from session or user's default
+            $activeProjectId = session('active_project_id') ?? $user->getActiveProjectId();
+            
+            // Share with all views
+            if ($activeProjectId) {
+                $activeProject = Projects::find($activeProjectId);
+                view()->share('currentActiveProject', $activeProject);
+                view()->share('activeProjectId', $activeProjectId);
+            }
         }
 
-        $projectId = $request->session()->get('current_project_id')
-                   ?? optional($user->activeProject())->id;
-
-        if ($projectId) {
-            view()->share('currentProject', Project::find($projectId));
-        }
+        return $next($request);
     }
-
-    return $next($request);
-}
 }

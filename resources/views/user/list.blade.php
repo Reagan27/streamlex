@@ -112,9 +112,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="deepSearchModalLabel">Deep Search</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <p>The initial search did not find any results. Would you like to perform a deeper search across all records?</p>
@@ -151,7 +149,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">@lang('Close')</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">@lang('Close')</button>
                     <button type="submit" class="btn btn-primary">@lang('Import')</button>
                 </div>
             </form>

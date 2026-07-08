@@ -17,7 +17,7 @@ return new class extends Migration
                 $table->text('description');
                 $table->string('authority_signature')->nullable(); 
                 $table->enum('status', ['draft', 'published', 'drop'])->default('draft');
-                $table->unsignedBigInteger('role_id');
+                $table->unsignedInteger('role_id');
                 $table->foreign('role_id')->references('id')->on('roles');
                 $table->timestamps();
             });

@@ -3,6 +3,7 @@
 namespace Vanguard\Presenters;
 
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
 use Vanguard\Support\Enum\UserStatus;
 
 class UserPresenter extends Presenter
@@ -25,7 +26,7 @@ class UserPresenter extends Presenter
 
         return Str::contains($this->model->avatar, ['http', 'gravatar'])
             ? $this->model->avatar
-            : url("upload/users/{$this->model->avatar}");
+            : Storage::disk('public')->url("upload/users/{$this->model->avatar}");
     }
 
     public function birthday(): string

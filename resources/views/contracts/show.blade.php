@@ -21,7 +21,7 @@
                 <p><strong>Start Date:</strong> {{ $contract->start_date->format('Y-m-d') }}</p>
                 <p><strong>Number of Days:</strong> {{ $contract->number_of_days }}</p>
                 <p><strong>Status:</strong> {{ ucfirst($contract->status) }}</p>
-                <p><strong>Role:</strong> {{ $contract->role->display_name }}</p>
+                <p><strong>Role:</strong> {{ optional($contract->role)->display_name }}</p>
             </div>
             <div class="col-md-6">
                 <p><strong>Counties:</strong></p>

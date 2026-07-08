@@ -1,0 +1,1 @@
+{"version":1,"defects":{"Tests\\Feature\\PaymentInvoiceLookupTest::test_it_falls_back_to_latest_user_invoice_when_payment_cycle_dates_do_not_overlap":8,"Tests\\Feature\\ComplianceDocumentTest::test_it_calculates_status_based_on_expiry_date":8,"Tests\\Feature\\Web\\GeneralReportApprovalTest::test_general_report_requires_approval_comments_before_approval":8},"times":[]}

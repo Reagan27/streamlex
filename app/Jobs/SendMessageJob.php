@@ -30,8 +30,8 @@ class SendMessageJob implements ShouldQueue
 
     public function handle()
     {
-        $chunkSize = 2; // Customize the chunk size based on API limits and requirements
-        $delayBetweenChunks = 10; // Delay between each chunk (in seconds)
+        $chunkSize = 2; 
+        $delayBetweenChunks = 10; 
         $successfulSends = 0;
 
         foreach (array_chunk($this->recipients->toArray(), $chunkSize) as $chunk) {
@@ -72,7 +72,7 @@ class SendMessageJob implements ShouldQueue
                         'status_message' => $recipientData['status'],
                     ]);
 
-                    // Increment successfulSends only for successful status code 101
+                   
                     if ($recipientData['statusCode'] == 101) {
                         $successfulSends++;
                     }
@@ -82,13 +82,13 @@ class SendMessageJob implements ShouldQueue
                 }
             }
 
-            // Update sent count in the batch record after processing each chunk
+            
             MessageBatch::where('batchId', $this->all['batchId'])->increment('sent', $successfulSends);
 
-            // Reset successful sends count after each batch update
+           
             $successfulSends = 0;
 
-            // Delay to avoid rate limits
+            
             sleep($delayBetweenChunks);
         }
     }

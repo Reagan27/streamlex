@@ -272,15 +272,15 @@ $(document).ready(function() {
             return;
         }
 
-        // Build rating config - ALWAYS include all fields
+       
         const ratingType = $('#rating-type').val();
         const ratingConfig = {
-            rating_type: ratingType,
+            rating_type: ratingType, 
             allow_comment: $('#allow-comments').is(':checked'),
             allow_skip: $('#allow-skip').is(':checked'),
         };
 
-        // Only include scale values if rating type is 'scale'
+       
         if (ratingType === 'scale') {
             ratingConfig.scale_min = parseInt($('#scale-min').val());
             ratingConfig.scale_max = parseInt($('#scale-max').val());

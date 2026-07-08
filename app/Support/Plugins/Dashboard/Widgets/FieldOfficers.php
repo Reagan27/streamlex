@@ -18,26 +18,26 @@ class FieldOfficers extends Widget
     public function __construct(protected readonly UserRepository $users)
     {
     }
-
     public function render(): View
-    {
-        $currentUser = Auth::user();
-        $query = $this->users->query()
-            ->whereHas('role', function($q) {
-                $q->where('name', 'Field_Officer');
-            });
-            // ->whereExists(function ($query) {
-            //     $query->select(DB::raw(1))
-            //           ->from('admin_contracts')
-            //           ->whereColumn('admin_contracts.role_id', 'users.role_id')
-            //           ->where('admin_contracts.status', 'published')
-            //           ->where(DB::raw('DATE_ADD(admin_contracts.start_date, INTERVAL admin_contracts.number_of_days DAY)'), '>', Carbon::now());
-            // });
+{
+    $currentUser = Auth::user();
+    $activeProjectId = session('active_project_id') ?? $currentUser->getActiveProjectId();
+    
+    $query = $this->users->query()
+        ->whereHas('role', function($q) {
+            $q->where('name', 'Field_Officer');
+        });
 
-        if ($currentUser->hasRole('Regional_Coordinator')) {
-            $assignedCountyIds = $currentUser->counties()->pluck('counties.id');
-            $query->whereIn('users.county_id', $assignedCountyIds);
-        } elseif ($currentUser->hasRole('County_Coordinator')) {
+    if ($activeProjectId) {
+        $query->whereHas('projects', function ($q) use ($activeProjectId) {
+            $q->where('projects.id', $activeProjectId);
+        });
+    }
+
+    if ($currentUser->hasRole('Regional_Coordinator')) {
+        $assignedCountyIds = $currentUser->counties()->pluck('counties.id');
+        $query->whereIn('users.county_id', $assignedCountyIds);
+    } elseif ($currentUser->hasRole('County_Coordinator')) {
             $query->where('users.county_id', $currentUser->county_id);
         } elseif ($currentUser->hasRole('Supervisor')) {
             $query->where('users.supervisor_id', $currentUser->id);

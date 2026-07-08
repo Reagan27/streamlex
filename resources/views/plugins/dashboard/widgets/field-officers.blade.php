@@ -6,7 +6,7 @@
             </div>
             <div class="pr-3">
                 <h2 class="text-right">{{ number_format($count) }}</h2>
-                <div class="text-muted">@lang('Quality Assurance')</div>
+                <div class="text-muted">Agripreneurs</div>
             </div>
         </div>
     </div>

@@ -5,11 +5,11 @@ namespace Vanguard\Providers;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\View;           // ← Added
-use Vanguard\Projects;                         // Already present
-use Auth;                                      // Already present (or use auth() helper)
+use Illuminate\Support\Facades\View;
+use Vanguard\Projects;
+use Vanguard\Http\ViewComposers\ActiveProjectComposer;
 
-// Your repository bindings
+// Repositories
 use Vanguard\Repositories\Appraisal\AppraisalRepository;
 use Vanguard\Repositories\Appraisal\EloquentAppraisalRepository;
 use Vanguard\Repositories\Country\CountryRepository;
@@ -37,6 +37,7 @@ use Vanguard\Repositories\Email\EmailRepository;
 use Vanguard\Repositories\Support\EloquentSupport;
 use Vanguard\Repositories\Support\SupportRepository;
 use Vanguard\Repositories\Support\IssuesCategoryRepository;
+use Vanguard\Repositories\Support\EloquentIssuesCategory;
 use Vanguard\Repositories\Visualization\VisualizationRepository;
 use Vanguard\Repositories\Visualization\EloquentVisualization;
 
@@ -47,44 +48,27 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Set locale and app name
         Carbon::setLocale(config('app.locale'));
         config(['app.name' => setting('app_name')]);
         \Illuminate\Database\Schema\Builder::defaultStringLength(191);
 
+        // Guess factory names
         Factory::guessFactoryNamesUsing(function (string $modelName) {
             return 'Database\Factories\\' . class_basename($modelName) . 'Factory';
         });
 
+        // Use Bootstrap for pagination
         \Illuminate\Pagination\Paginator::useBootstrap();
 
         // ================================================
-        // Global Project Selector for Navbar
+        // Global Project Selector for Views
         // ================================================
- View::composer(['layouts.app', 'partials.navbar'], function ($view) {
-    $user = auth()->user();
-
-    if (!$user) {
-        $projects = collect();
-    } elseif (
-        $user->isAdmin() ||
-        $user->hasRole(['Manager', 'Finance'])
-    ) {
-        $projects = Projects::orderBy('name')->get();
-    } elseif ($user->role->name === 'Regional_Coordinator') {
-        $countyIds = $user->counties()->pluck('counties.id');
-        $projects = Projects::whereHas('users', function ($q) use ($countyIds) {
-            $q->whereIn('county_id', $countyIds);
-        })->orderBy('name')->get();
-    } elseif ($user->role->name === 'County_Coordinator') {
-        $projects = Projects::whereHas('users', function ($q) use ($user) {
-            $q->where('county_id', $user->county_id);
-        })->orderBy('name')->get();
-    } else {
-        $projects = collect();
-    }
-
-    $view->with('projects', $projects);
-});
+        // EXCLUDE projects.index from composer since it has its own pagination
+        View::composer(
+            ['layouts.app', 'partials.navbar', 'projects.create', 'projects.edit'], 
+            ActiveProjectComposer::class
+        );
     }
 
     /**
@@ -92,6 +76,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // -------------------
+        // Repository bindings
+        // -------------------
         $this->app->singleton(UserRepository::class, EloquentUser::class);
         $this->app->singleton(RoleRepository::class, EloquentRole::class);
         $this->app->singleton(PermissionRepository::class, EloquentPermission::class);
@@ -100,6 +87,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(CountyRepository::class, EloquentCounty::class);
         $this->app->singleton(SubcountyRepository::class, EloquentSubcounty::class);
         $this->app->singleton(WardRepository::class, EloquentWard::class);
+
         $this->app->bind(AssetRepository::class, EloquentAsset::class);
         $this->app->bind(AppraisalRepository::class, EloquentAppraisalRepository::class);
         $this->app->bind(MessageRepository::class, EloquentMessage::class);

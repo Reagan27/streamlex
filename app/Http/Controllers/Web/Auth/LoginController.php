@@ -8,9 +8,13 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use App\Notifications\ReportSubmissionReminder;
+use Vanguard\BackToOfficeReport;
 use Vanguard\Events\User\LoggedIn;
 use Vanguard\Events\User\LoggedOut;
+use Vanguard\GeneralReport;
 use Vanguard\Http\Controllers\Controller;
+use Vanguard\ReportReminderLog;
 use Vanguard\Http\Requests\Auth\LoginRequest;
 use Vanguard\Repositories\Session\SessionRepository;
 use Vanguard\Repositories\User\UserRepository;
@@ -102,11 +106,55 @@ class LoginController extends Controller
 
         event(new LoggedIn);
 
+        $this->dispatchReportSubmissionReminder($user);
+
         if ($redirectPage) {
             return redirect()->to($redirectPage);
         }
 
         return redirect()->intended();
+    }
+
+    protected function dispatchReportSubmissionReminder(BaseAuthenticatable $user): void
+    {
+        if (! $user instanceof User) {
+            return;
+        }
+
+        foreach (['general', 'back_to_office'] as $type) {
+            if ($this->hasOutstandingReport($user, $type)) {
+                $label = $type === 'general' ? 'General' : 'Back to Office';
+                $message = "You have not yet submitted your {$label} report for this month. Please submit it as soon as possible.";
+
+                $lastSent = ReportReminderLog::where('user_id', $user->id)
+                    ->where('report_type', $type)
+                    ->latest('sent_at')
+                    ->first();
+
+                if (! $lastSent || $lastSent->sent_at->diffInDays(now()) >= 3) {
+                    $user->notify(new ReportSubmissionReminder($type, $message));
+                    ReportReminderLog::create([
+                        'user_id' => $user->id,
+                        'report_type' => $type,
+                        'sent_at' => now(),
+                    ]);
+                }
+
+                session()->flash('info', $message);
+                break;
+            }
+        }
+    }
+
+    protected function hasOutstandingReport(User $user, string $reportType): bool
+    {
+        $query = $reportType === 'general'
+            ? GeneralReport::where('created_by', $user->id)
+            : BackToOfficeReport::where('created_by', $user->id);
+
+        return ! $query->whereIn('status', ['submitted', 'approved'])
+            ->where('created_at', '>=', now()->subDays(30))
+            ->exists();
     }
 
     protected function logoutAndRedirectToTokenPage(Request $request, $user, ?string $redirectPage): RedirectResponse

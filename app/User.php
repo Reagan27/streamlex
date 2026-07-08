@@ -60,29 +60,26 @@ class User extends Authenticatable implements MustVerifyEmail
         Presentable,
         AutoOnboardingTrait,
         TwoFactorAuthenticatable;
-       
 
     protected string $presenter = UserPresenter::class;
-
-    /**
-     * The database table used by the model.
-     *
-     * @var string
-     */
     protected $table = 'users';
 
-     /**
-     * The attributes that are mass assignable.
-     *
-     * @var array
-     */
     protected $fillable = [
-        'email', 'password', 'username', 'first_name', 'last_name', 'phone', 'first_authentication', 'initial_password','avatar',
+        'email', 'password', 'username', 'first_name', 'last_name', 'phone', 'first_authentication', 'initial_password', 'avatar',
         'country_id','county_id', 'subcounty_id', 'ward_id', 'birthday', 'last_login', 'confirmation_token', 'status',
         'remember_token', 'role_id', 'email_verified_at', 'supervisor_id','completed','policy_agreed',
-        'address', 'country_id', 'banking_submitted', 'documents_submitted', 'contract_signed',
-        'onboarding_completed_at', 'role_status','birthday','onboarding_status', 'approved_for_payment'
-       
+        'address', 'banking_submitted', 'documents_submitted', 'contract_signed',
+        'onboarding_completed_at', 'role_status','onboarding_status', 'approved_for_payment',
+        'contract_type',
+        // Employee Info fields
+        'nok_full_name', 'nok_relationship', 'nok_mobile', 'nok_alt_phone', 'nok_email', 'nok_address',
+        'marital_status', 'spouse_name', 'spouse_contact', 'dependents',
+        'employee_number', 'department', 'job_title', 'employment_type', 'employment_date',
+        'work_station', 'supervisor_name', 'supervisor_title',
+        'blood_group', 'medical_conditions', 'allergies', 'medical_facility',
+        'disability', 'disability_details', 'workplace_adjustments',
+        // Statutory & Compliance Declarations
+        'info_accurate', 'info_authorize', 'info_falsified'
     ];
 
     protected $casts = [
@@ -90,26 +87,19 @@ class User extends Authenticatable implements MustVerifyEmail
         'birthday' => 'date',
         'updated_at' => 'datetime',
         'onboarding_completed_at' => 'datetime',
-        'birthday' => 'date',
         'role_status' => 'integer',
         'completed' => 'boolean',
         'onboarding_status' => 'boolean',
         'approved_for_payment' => 'boolean',
         'status' => UserStatus::class,
+        'nda_signed_at' => 'datetime',
     ];
 
-  
-
-    /**
-     * The attributes excluded from the model's JSON form.
-     *
-     * @var array
-     */
     protected $hidden = ['password', 'remember_token'];
 
-    /**
-     * Always encrypt password when it is updated.
-     */
+    // ------------------------
+    // Accessors & Mutators
+    // ------------------------
     public function setPasswordAttribute(string $value): void
     {
         $this->attributes['password'] = bcrypt($value);
@@ -120,32 +110,45 @@ class User extends Authenticatable implements MustVerifyEmail
         $this->attributes['birthday'] = trim($value) ?: null;
     }
 
+    public function getNameAttribute(): string
+    {
+        return $this->first_name . ' ' . $this->last_name;
+    }
+
+    public function getBankBranchAttribute()
+    {
+        if ($this->manualBankDetails && $this->manualBankDetails->use_manual_details) {
+            return [
+                'name' => $this->manualBankDetails->manual_branch_name,
+                'code' => $this->manualBankDetails->manual_branch_code
+            ];
+        }
+
+        return $this->bankDetails ? BankBranch::where('branch_code', $this->bankDetails->bank_branch)->first() : null;
+    }
+
+
+    public function educationDocuments()
+{
+    return $this->hasMany(\App\Models\EducationDocument::class);
+}
+public function otherDocuments()
+{
+    return $this->hasMany(\App\Models\OtherDocument::class);
+}
+
+    // ------------------------
+    // Authentication & Notifications
+    // ------------------------
     public function gravatar(): string
     {
         $hash = hash('md5', strtolower(trim($this->attributes['email'])));
-
         return sprintf('https://www.gravatar.com/avatar/%s?size=150', $hash);
-    }
-
-    public function isUnconfirmed(): bool
-    {
-        return $this->status == UserStatus::UNCONFIRMED;
-    }
-
-    public function isActive(): bool
-    {
-        return $this->status == UserStatus::ACTIVE;
-    }
-
-    public function isBanned(): bool
-    {
-        return $this->status == UserStatus::BANNED;
     }
 
     public function sendPasswordResetNotification($token): void
     {
         Mail::to($this)->send(new \Vanguard\Mail\ResetPassword($token));
-
         event(new RequestedPasswordResetEmail($this));
     }
 
@@ -159,172 +162,61 @@ class User extends Authenticatable implements MustVerifyEmail
         return !$this->two_factor_confirmed_at && !!$this->two_factor_secret;
     }
 
-    public function assets()
+    // ------------------------
+    // Status Checks
+    // ------------------------
+    public function isUnconfirmed(): bool { return $this->status == UserStatus::UNCONFIRMED; }
+    public function isActive(): bool { return $this->status == UserStatus::ACTIVE; }
+    public function isBanned(): bool { return $this->status == UserStatus::BANNED; }
+    public function isInitialPasswordExpired(): bool
     {
-        return $this->hasMany(Asset::class, 'assigned_to');
+        return $this->initial_password && $this->created_at->diffInDays(now()) > 7;
     }
 
-    // Relationships
-    public function counties()
-    {
-        return $this->belongsToMany(County::class, 'regional_coordinator_counties', 'user_id', 'county_id');
-    }
+    public function isOnboardingComplete(): bool { return $this->onboarding_status; }
 
-    
-    public function county()
-    {
-        return $this->belongsTo(County::class);
-    }
+    // ------------------------
+    // Role & Hierarchy
+    // ------------------------
+    public function role(): BelongsTo { return $this->belongsTo(Role::class); }
+    public function roles(): BelongsToMany { return $this->belongsToMany(Role::class); }
 
-    public function subcounty()
+    public function hasRole($roles): bool
     {
-        return $this->belongsTo(Subcounty::class);
-    }
-
-    public function ward()
-    {
-        return $this->belongsTo(Ward::class);
-    }
-
-    public function role():BelongsTo
-    {
-        return $this->belongsTo(Role::class);
-    }
-
-    
-    public function roles(): BelongsToMany
-    {
-        return $this->belongsToMany(Role::class);
-    }
-    
-    public function appraisals()
-    {
-        return $this->hasMany(Appraisal::class);
-    }
-  
-
-
-    public function hasRole($roles)
-    {
-        if (is_array($roles)) {
-            return in_array($this->role->name, $roles);
-        }
-        
+        if (is_array($roles)) return in_array($this->role->name, $roles);
         return $this->role->name === $roles;
     }
 
-    public function assignCountiesToUser(int $userId, array $countyIds): bool
+    public function assignRole(Role $role) { $this->setRole($role); }
+    public function setRole(Role $role)
     {
-        $user = $this->find($userId);
-        return $user->counties()->sync($countyIds);
+        $this->role()->associate($role);
+        $this->role_status = true;
+        $this->save();
     }
-    
-    public function bankDetails()
+    public function removeRole()
     {
-        return $this->hasOne(UserBankDetail::class);
-    }
-    
-    public function documents()
-    {
-        return $this->hasOne(UserDocument::class);
-    }
-    
-    public function contractSignature()
-    {
-        return $this->hasOne(UserContractSignature::class);
+        $this->role()->dissociate();
+        $this->role_status = false;
+        $this->save();
     }
 
-    // public function isOnboardingCompleted(): bool
-    // {
-    //     return $this->banking_submitted && 
-    //            $this->documents_submitted && 
-    //            $this->contract_signed && 
-    //            $this->onboarding_completed_at !== null;
-    // }
-
-    public function isOnboardingComplete()
+    public function hasHigherHierarchyThan(User $otherUser): bool
     {
-        return $this->onboarding_status;
-    }
-    public function getNameAttribute()
-{
-    return $this->first_name . ' ' . $this->last_name;
-}
-
-public function contractSignatures()
-{
-    return $this->hasMany(UserContractSignature::class);
-}
-
-// In your User model (Vanguard\User)
-
-public function projects(): BelongsToMany
-{
-    return $this->belongsToMany(Projects::class)
-                ->withPivot('is_active_project')
-                ->withTimestamps();
-}
-
-public function activeProject()
-{
-    return $this->projects()->wherePivot('is_active_project', true)->first();
-}
-
-public function setActiveProject(Projects $project)
-{
-    // Deactivate all others
-    $this->projects()->updateExistingPivot($this->projects()->pluck('id'), ['is_active_project' => false]);
-
-    // Activate this one
-    $this->projects()->syncWithoutDetaching([$project->id => ['is_active_project' => true]]);
-}
-
-
-public function assignRole(Role $role)
-{
-    $this->role()->associate($role);
-    $this->role_status = true;
-    $this->save();
-}
-
-public function setRole(Role $role)
-{
-    $this->role()->associate($role);
-    $this->role_status = true;
-    $this->save();
-}
-public function removeRole()
-{
-    $this->role()->dissociate();
-    $this->role_status = false;
-    $this->save();
-}
-public function supervisor(): BelongsTo
-{
-    return $this->belongsTo(User::class, 'supervisor_id');
-}
-
-public function fieldOfficers(): HasMany
-{
-    return $this->hasMany(User::class, 'supervisor_id');
-}
-
-public function subordinates(): HasMany
-    {
-        return $this->hasMany(User::class, 'supervisor_id');
+        $hierarchy = [
+            'Admin' => 1,
+            'Manager' => 2,
+            'Regional_Coordinator' => 3,
+            'County_Coordinator' => 4,
+            'Supervisor' => 5,
+            'Field_Officer' => 6
+        ];
+        return $hierarchy[$this->role->name] < $hierarchy[$otherUser->role->name];
     }
 
-    public function regionalCoordinatorCounties()
+    public function canSupervise(User $user): bool
     {
-        return $this->hasMany(RegionalCoordinatorCounty::class);
-    }
-
-public function canSupervise(User $user): bool
-    {
-        if ($this->isAdmin() || $this->isManager()) {
-            return true;
-        }
-        
+        if ($this->isAdmin() || $this->isManager()) return true;
 
         if ($this->role->name === 'Regional_Coordinator') {
             $assignedCountyIds = $this->counties()->pluck('counties.id')->toArray();
@@ -342,110 +234,155 @@ public function canSupervise(User $user): bool
         return false;
     }
 
-    public function isAdmin()
+    public function canAssign(User $superior, User $subordinate): bool
     {
-        return $this->hasRole('Admin');
-    }
-
-    public function isManager()
-{
-    return $this->hasRole('Manager');
-}
-public function isRegionalCoordinator()
-{
-    return $this->role && $this->role->name === 'Regional_Coordinator';
-}
-protected static function booted()
-{
-    static::saved(function ($user) {
-        if ($user->isDirty('role_id')) {
-            $user->role_status = !is_null($user->role_id);
-            $user->saveQuietly();
-        }
-    });
-}
-
-public function isInitialPasswordExpired(): bool
-{
-    return $this->initial_password && 
-           $this->created_at->diffInDays(now()) > 7;
-}
-
-public function canAssign(User $superior, User $subordinate): bool
-    {
-        // Implement your logic here. For example:
-        if ($this->isAdmin() || $this->isManager()) {
-            return true;
-        }
-        
+        if ($this->isAdmin() || $this->isManager()) return true;
 
         if ($this->role->name === 'Regional_Coordinator') {
-            // Check if the superior is a County Coordinator and the subordinate is a Supervisor
-            return $superior->role->name === 'County_Coordinator' 
-                && $subordinate->role->name === 'Supervisor'
-                && $this->counties->contains($superior->county_id)
-                && $this->counties->contains($subordinate->county_id);
+            return $superior->role->name === 'County_Coordinator' &&
+                   $subordinate->role->name === 'Supervisor' &&
+                   $this->counties->contains($superior->county_id) &&
+                   $this->counties->contains($subordinate->county_id);
         }
 
         if ($this->role->name === 'County_Coordinator') {
-            // Check if the superior is a Supervisor and the subordinate is a Field Officer
-            return $superior->role->name === 'Supervisor' 
-                && $subordinate->role->name === 'Field_Officer'
-                && $this->county_id === $superior->county_id
-                && $this->county_id === $subordinate->county_id;
+            return $superior->role->name === 'Supervisor' &&
+                   $subordinate->role->name === 'Field_Officer' &&
+                   $this->county_id === $superior->county_id &&
+                   $this->county_id === $subordinate->county_id;
         }
 
-        return false; // By default, users can't assign
+        return false;
     }
 
-    public function hasHigherHierarchyThan(User $otherUser)
-{
-    $hierarchy = [
-        'Admin' => 1,
-        'Manager' => 2,
-        'Regional_Coordinator' => 3,
-        'County_Coordinator' => 4,
-        'Supervisor' => 5,
-        'Field_Officer' => 6
-    ];
+    public function isAdmin(): bool { return $this->hasRole('Admin'); }
+    public function isManager(): bool { return $this->hasRole('Manager'); }
+    public function isRegionalCoordinator(): bool { return $this->role && $this->role->name === 'Regional_Coordinator'; }
 
-    return $hierarchy[$this->role->name] < $hierarchy[$otherUser->role->name];
-}
-
-public function getRouteKeyName()
-{
-    return 'id';
-}
-
-public function payments(): HasMany
-{
-    return $this->hasMany(Payment::class);
-}
-
-public function distributedAssets()
-{
-    return $this->hasMany(AssetDistribution::class, 'distributed_to');
-}
-
-public function assetAssignments()
-{
-    return $this->hasMany(AssetAssignment::class, 'assigned_to');
-}
-
-public function manualBankDetails(): HasOne
-{
-    return $this->hasOne(UserManualBankDetails::class);
-}
-
-public function getBankBranchAttribute()
+    protected static function booted()
     {
-        if ($this->manualBankDetails && $this->manualBankDetails->use_manual_details) {
-            return [
-                'name' => $this->manualBankDetails->manual_branch_name,
-                'code' => $this->manualBankDetails->manual_branch_code
-            ];
+        static::saved(function ($user) {
+            if ($user->isDirty('role_id')) {
+                $user->role_status = !is_null($user->role_id);
+                $user->saveQuietly();
+            }
+        });
+    }
+
+    // ------------------------
+    // Relationships
+    // ------------------------
+    public function supervisor(): BelongsTo { return $this->belongsTo(User::class, 'supervisor_id'); }
+    public function fieldOfficers(): HasMany { return $this->hasMany(User::class, 'supervisor_id'); }
+    public function subordinates(): HasMany { return $this->hasMany(User::class, 'supervisor_id'); }
+    public function regionalCoordinatorCounties(): HasMany { return $this->hasMany(RegionalCoordinatorCounty::class); }
+    public function counties(): BelongsToMany
+    {
+        return $this->belongsToMany(County::class, 'regional_coordinator_counties', 'user_id', 'county_id');
+    }
+    public function county(): BelongsTo { return $this->belongsTo(County::class); }
+    public function subcounty(): BelongsTo { return $this->belongsTo(Subcounty::class); }
+    public function ward(): BelongsTo { return $this->belongsTo(Ward::class); }
+    public function assets(): HasMany { return $this->hasMany(Asset::class, 'assigned_to'); }
+    public function appraisals(): HasMany { return $this->hasMany(Appraisal::class); }
+    public function bankDetails(): HasOne { return $this->hasOne(UserBankDetail::class); }
+    public function manualBankDetails(): HasOne { return $this->hasOne(UserManualBankDetails::class); }
+    public function documents(): HasMany { return $this->hasMany(UserDocument::class); }
+    public function contractSignature(): HasOne { return $this->hasOne(UserContractSignature::class); }
+    public function contractSignatures(): HasMany { return $this->hasMany(UserContractSignature::class); }
+    public function payments(): HasMany { return $this->hasMany(Payment::class); }
+    public function distributedAssets(): HasMany { return $this->hasMany(AssetDistribution::class, 'distributed_to'); }
+    public function assetAssignments(): HasMany { return $this->hasMany(AssetAssignment::class, 'assigned_to'); }
+
+    // ------------------------
+    // Projects Integration
+    // ------------------------
+    
+    /**
+     * The projects that belong to the user.
+     */
+    public function projects(): BelongsToMany
+    {
+        return $this->belongsToMany(Projects::class, 'projects_user', 'user_id', 'project_id')
+                    ->using(ProjectUser::class)
+                    ->withPivot('is_active_project')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Get the user's currently active project.
+     */
+    public function activeProject()
+    {
+        return $this->projects()
+                    ->wherePivot('is_active_project', true)
+                    ->first();
+    }
+
+    /**
+     * Check if a specific project is the user's active project.
+     */
+    public function hasActiveProject($projectId): bool
+    {
+        return $this->projects()
+                    ->where('projects.id', $projectId)
+                    ->wherePivot('is_active_project', true)
+                    ->exists();
+    }
+
+    /**
+     * Set a project as the active project for this user.
+     */
+    public function setActiveProject(Projects $project)
+    {
+        // First, deactivate all projects for this user
+        $this->projects()->updateExistingPivot(
+            $this->projects()->pluck('projects.id'), 
+            ['is_active_project' => false]
+        );
+        
+        // Then set the new active project
+        $this->projects()->syncWithoutDetaching([
+            $project->id => ['is_active_project' => true]
+        ]);
+        
+        // Update session
+        session(['active_project_id' => $project->id]);
+        session(['active_project_name' => $project->name]);
+    }
+
+    /**
+     * Clear the active project for this user.
+     */
+    public function clearActiveProject()
+    {
+        $this->projects()->updateExistingPivot(
+            $this->projects()->pluck('projects.id'), 
+            ['is_active_project' => false]
+        );
+        
+        // Clear session
+        session()->forget(['active_project_id', 'active_project_name']);
+    }
+
+    /**
+     * Get the active project ID from session or database.
+     */
+    public function getActiveProjectId()
+    {
+        // Try session first
+        if (session()->has('active_project_id')) {
+            return session('active_project_id');
         }
 
-        return $this->bankDetails ? BankBranch::where('branch_code', $this->bankDetails->bank_branch)->first() : null;
+        // Fall back to database
+        $activeProject = $this->activeProject();
+        if ($activeProject) {
+            session(['active_project_id' => $activeProject->id]);
+            session(['active_project_name' => $activeProject->name]);
+            return $activeProject->id;
+        }
+
+        return null;
     }
 }

@@ -1,0 +1,1693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0f4c81">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Field Activities – FAM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+    <style>
+        /* ═══════════════════════════════════════ TOKENS */
+        :root {
+            --brand:      #179970;
+            --brand-mid:  #179970;
+            --brand-lite: #d1fae5;
+            --accent:     #179970;
+            --warn:       #f59e0b;
+            --danger:     #ef4444;
+            --purple:     #7c3aed;
+            --dark:       #0d1b2a;
+            --text:       #1e293b;
+            --muted:      #64748b;
+            --border:     #e2e8f0;
+            --surface:    #f8fafc;
+            --white:      #ffffff;
+            --shadow-sm:  0 1px 4px rgba(0,0,0,0.06);
+            --shadow:     0 4px 16px rgba(0,0,0,0.08);
+            --radius:     10px;
+            --radius-lg:  16px;
+        }
+
+        /* ═══════════════════════════════════════ RESET */
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body {
+            font-family: 'IBM Plex Sans', system-ui, sans-serif;
+            background: var(--surface);
+            color: var(--text);
+            padding-top: 64px;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        /* ═══════════════════════════════════════ TOPNAV */
+        .topnav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+            height: 64px;
+            background: var(--brand);
+            display: flex; align-items: center;
+            padding: 0 1.25rem;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+        }
+        .topnav .brand {
+            font-weight: 700; font-size: 1rem; color: #fff;
+            letter-spacing: -0.01em;
+            display: flex; align-items: center; gap: 0.5rem;
+            cursor: pointer; text-decoration: none;
+        }
+        .topnav .brand-icon {
+            width: 34px; height: 34px; border-radius: 8px;
+            background: rgba(255,255,255,0.15);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1rem;
+        }
+        .topnav-right { margin-left: auto; display: flex; align-items: center; gap: 0.5rem; }
+        .topnav-btn {
+            background: rgba(255,255,255,0.12); border: none; color: #fff;
+            width: 36px; height: 36px; border-radius: 8px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1rem; transition: background 0.2s;
+        }
+        .topnav-btn:hover { background: rgba(255,255,255,0.22); }
+        .topnav-user {
+            display: flex; align-items: center; gap: 0.4rem;
+            color: rgba(255,255,255,0.9); font-size: 0.85rem;
+        }
+        .avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: var(--accent); color: var(--brand);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 0.75rem;
+        }
+
+        /* ═══════════════════════════════════════ MOBILE BOTTOM NAV */
+        .mobile-nav {
+            display: none;
+            position: fixed; bottom: 0; left: 0; right: 0; z-index: 999;
+            background: var(--white);
+            border-top: 1px solid var(--border);
+            padding: 6px 0 calc(6px + env(safe-area-inset-bottom));
+            grid-template-columns: repeat(4, 1fr);
+        }
+        .mob-nav-btn {
+            display: flex; flex-direction: column; align-items: center;
+            gap: 3px; padding: 6px; cursor: pointer;
+            font-size: 0.65rem; color: var(--muted);
+            background: none; border: none; transition: color 0.2s;
+        }
+        .mob-nav-btn i { font-size: 1.3rem; }
+        .mob-nav-btn.active { color: var(--brand); }
+        .mob-nav-btn.active i { font-weight: 900; }
+
+        @media (max-width: 768px) {
+            body { padding-top: 56px; padding-bottom: 80px; }
+            .topnav { height: 56px; }
+            .mobile-nav { display: grid; }
+            .desktop-nav { display: none !important; }
+        }
+
+        /* ═══════════════════════════════════════ VIEWS */
+        .view { display: none; animation: fadeUp 0.25s ease; }
+        .view.active { display: block; }
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ═══════════════════════════════════════ PAGE WRAPPER */
+        .page-wrap { max-width: 1280px; margin: 0 auto; padding: 1.5rem 1.25rem; }
+
+        /* ═══════════════════════════════════════ STAT CARDS */
+        .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+        @media (max-width: 900px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 480px) { .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; } }
+
+        .stat-card {
+            background: var(--white);
+            border-radius: var(--radius-lg);
+            padding: 1.25rem;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-sm);
+        }
+        .stat-icon {
+            width: 44px; height: 44px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.3rem; margin-bottom: 0.75rem;
+        }
+        .stat-value { font-size: 1.5rem; font-weight: 700; line-height: 1.1; }
+        .stat-label { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+
+        /* ═══════════════════════════════════════ ACTIVITY LIST */
+        .activity-card {
+            background: var(--white);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            border-left: 4px solid transparent;
+            margin-bottom: 0.75rem;
+            padding: 1.1rem 1.25rem;
+            cursor: pointer;
+            transition: box-shadow 0.2s, transform 0.2s;
+            box-shadow: var(--shadow-sm);
+        }
+        .activity-card:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+        .activity-card.submitted { border-left-color: var(--brand); }
+        .activity-card.approved  { border-left-color: var(--accent); }
+        .activity-card.funded    { border-left-color: var(--purple); }
+        .activity-card.draft     { border-left-color: var(--muted); }
+        .activity-card.rejected  { border-left-color: var(--danger); }
+
+        /* ═══════════════════════════════════════ BADGES */
+        .badge-pill {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 10px; border-radius: 999px;
+            font-size: 0.72rem; font-weight: 600; white-space: nowrap;
+        }
+        .bp-draft    { background: #e2e8f0; color: #475569; }
+        .bp-submitted{ background: #dbeafe; color: #1e40af; }
+        .bp-approved { background: #d1fae5; color: #065f46; }
+        .bp-funded   { background: #ede9fe; color: #5b21b6; }
+        .bp-rejected { background: #fee2e2; color: #991b1b; }
+        .bp-progress { background: #fef3c7; color: #92400e; }
+        .bp-complete { background: #d1fae5; color: #065f46; }
+
+        /* ═══════════════════════════════════════ SECTION HEADER */
+        .page-header {
+            display: flex; align-items: flex-start; justify-content: space-between;
+            margin-bottom: 1.5rem; flex-wrap: wrap; gap: 0.75rem;
+        }
+        .page-title { font-size: 1.4rem; font-weight: 700; color: var(--dark); }
+        .page-subtitle { font-size: 0.83rem; color: var(--muted); margin-top: 2px; }
+
+        /* ═══════════════════════════════════════ FILTERS */
+        .filter-bar {
+            background: var(--white);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            padding: 0.75rem 1rem;
+            margin-bottom: 1rem;
+            display: flex; flex-wrap: wrap; gap: 0.5rem;
+        }
+
+        /* ═══════════════════════════════════════ DETAIL: TAB NAV */
+        .detail-tabs {
+            display: flex; gap: 0;
+            background: var(--white);
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+            border: 1px solid var(--border);
+            border-bottom: none;
+            overflow: hidden;
+        }
+        .d-tab {
+            flex: 1; padding: 0.85rem 1rem;
+            font-size: 0.85rem; font-weight: 600;
+            color: var(--muted); cursor: pointer;
+            border: none; background: none;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+            border-bottom: 3px solid transparent;
+            transition: all 0.18s;
+        }
+        .d-tab:hover { color: var(--brand); background: var(--surface); }
+        .d-tab.active {
+            color: var(--brand);
+            border-bottom-color: var(--brand);
+            background: var(--white);
+        }
+        .d-tab .tab-badge {
+            background: var(--brand); color: #fff;
+            font-size: 0.65rem; padding: 1px 6px; border-radius: 999px;
+        }
+        @media (max-width: 600px) {
+            .d-tab span.tab-label { display: none; }
+            .d-tab { font-size: 1rem; padding: 0.75rem; }
+        }
+
+        .tab-content-panel { display: none; }
+        .tab-content-panel.active { display: block; }
+
+        /* ═══════════════════════════════════════ TAB CARD WRAPPER */
+        .tab-panel-card {
+            background: var(--white);
+            border: 1px solid var(--border);
+            border-top: none;
+            border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+            padding: 1.5rem;
+        }
+
+        /* ═══════════════════════════════════════ SECTION CARDS */
+        .section-card {
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+        .section-head {
+            padding: 0.85rem 1.1rem;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            font-weight: 600; font-size: 0.9rem;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .section-body { padding: 1.1rem; background: var(--white); }
+
+        /* ═══════════════════════════════════════ PROGRESS */
+        .progress-ring-wrap { display: flex; align-items: center; gap: 1.5rem; }
+        .big-progress {
+            width: 90px; height: 90px;
+            border-radius: 50%;
+            background: conic-gradient(var(--brand) 0% 65%, #e2e8f0 65% 100%);
+            display: flex; align-items: center; justify-content: center;
+            position: relative;
+        }
+        .big-progress::after {
+            content: ''; position: absolute; inset: 10px;
+            border-radius: 50%; background: white;
+        }
+        .progress-inner {
+            position: relative; z-index: 1;
+            font-size: 1.1rem; font-weight: 700; color: var(--brand);
+        }
+
+        /* ═══════════════════════════════════════ TIMELINE */
+        .timeline { padding-left: 1.75rem; position: relative; }
+        .timeline::before {
+            content: ''; position: absolute; left: 0.55rem; top: 4px; bottom: 4px;
+            width: 2px; background: var(--border);
+        }
+        .tl-item { position: relative; padding-bottom: 1.25rem; }
+        .tl-dot {
+            position: absolute; left: -1.75rem;
+            width: 28px; height: 28px; border-radius: 50%;
+            border: 2.5px solid white;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.72rem;
+        }
+        .tl-dot.blue { background: var(--brand-lite); color: var(--brand); }
+        .tl-dot.green { background: #d1fae5; color: #065f46; }
+        .tl-dot.amber { background: #fef3c7; color: #92400e; }
+        .tl-dot.purple{ background: #ede9fe; color: #5b21b6; }
+        .tl-text { font-size: 0.85rem; font-weight: 600; color: var(--text); }
+        .tl-time { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+
+        /* ═══════════════════════════════════════ TRANSPORT LOG */
+        .transport-card {
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            position: relative;
+        }
+        .transport-route {
+            display: flex; align-items: center; gap: 0.5rem;
+            font-weight: 600; margin-bottom: 0.5rem;
+            flex-wrap: wrap;
+        }
+        .gps-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 2px 8px; border-radius: 999px;
+            font-size: 0.7rem; font-weight: 600;
+        }
+        .gps-ok  { background: #d1fae5; color: #065f46; }
+        .gps-pend{ background: #fef3c7; color: #92400e; }
+
+        /* ═══════════════════════════════════════ DOCS GRID */
+        .docs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.75rem; }
+        .doc-card {
+            border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 0.85rem; display: flex; align-items: center; gap: 0.75rem;
+            cursor: pointer; transition: background 0.15s;
+        }
+        .doc-card:hover { background: var(--surface); }
+        .doc-icon { font-size: 1.5rem; }
+        .doc-name { font-size: 0.82rem; font-weight: 600; }
+        .doc-size { font-size: 0.72rem; color: var(--muted); }
+
+        /* ═══════════════════════════════════════ BUDGET BAR */
+        .budget-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0.6rem 0; border-bottom: 1px solid var(--border);
+        }
+        .budget-row:last-child { border-bottom: none; }
+        .b-label { font-size: 0.83rem; color: var(--muted); }
+        .b-value { font-family: 'IBM Plex Mono', monospace; font-size: 0.88rem; font-weight: 600; }
+
+        /* ═══════════════════════════════════════ FORM ELEMENTS */
+        .form-section {
+            border: 1px solid var(--border); border-radius: var(--radius);
+            margin-bottom: 1rem; overflow: hidden;
+        }
+        .form-head {
+            padding: 0.85rem 1.1rem;
+            background: linear-gradient(135deg, var(--brand), var(--brand-mid));
+            color: white; font-weight: 600; font-size: 0.9rem;
+        }
+        .form-body { padding: 1.25rem; background: white; }
+
+        /* ═══════════════════════════════════════ QUICK ACTIONS */
+        .quick-actions {
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+        .qa-btn {
+            border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 1rem; cursor: pointer; background: white;
+            display: flex; align-items: center; gap: 0.75rem;
+            font-size: 0.85rem; font-weight: 600; color: var(--text);
+            transition: all 0.18s;
+        }
+        .qa-btn:hover { border-color: var(--brand); background: var(--brand-lite); color: var(--brand); }
+        .qa-icon {
+            width: 40px; height: 40px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.1rem; flex-shrink: 0;
+        }
+
+        /* ═══════════════════════════════════════ RECONCILIATION */
+        .recon-card {
+            border: 2px solid var(--accent); border-radius: var(--radius-lg);
+            background: linear-gradient(135deg, #f0fdf9, white);
+            padding: 1.25rem;
+        }
+        .recon-row {
+            display: flex; justify-content: space-between; padding: 0.5rem 0;
+            border-bottom: 1px dashed var(--border); font-size: 0.88rem;
+        }
+        .recon-total {
+            display: flex; justify-content: space-between; padding: 0.75rem 0 0;
+            font-weight: 700; font-size: 1rem;
+        }
+
+        /* ═══════════════════════════════════════ BREADCRUMB */
+        .breadcrumb-bar {
+            display: flex; align-items: center; gap: 0.4rem;
+            font-size: 0.8rem; color: var(--muted); margin-bottom: 0.5rem;
+        }
+        .breadcrumb-bar a { color: var(--brand); text-decoration: none; }
+        .breadcrumb-bar a:hover { text-decoration: underline; }
+
+        /* ═══════════════════════════════════════ FIELD UPDATE CARD */
+        .update-area {
+            background: linear-gradient(135deg, var(--brand), var(--brand-mid));
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            color: white;
+            margin-bottom: 1rem;
+        }
+        .update-area h5 { font-weight: 700; margin-bottom: 0.25rem; }
+        .update-area p { opacity: 0.8; font-size: 0.85rem; margin: 0; }
+        .update-progress-bar {
+            height: 10px; border-radius: 999px;
+            background: rgba(255,255,255,0.2);
+            margin: 1rem 0 0.5rem;
+        }
+        .update-progress-fill {
+            height: 100%; border-radius: 999px;
+            background: var(--accent);
+            width: 65%;
+        }
+
+        /* ═══════════════════════════════════════ CALENDAR */
+        .cal-grid {
+            display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;
+        }
+        .cal-day-head {
+            text-align: center; font-size: 0.7rem; font-weight: 700;
+            color: var(--muted); text-transform: uppercase;
+            padding: 6px; background: var(--surface); border-radius: 6px;
+        }
+        .cal-day {
+            min-height: 90px; border: 1px solid var(--border); border-radius: 8px;
+            padding: 6px; background: white; position: relative; transition: all 0.15s;
+        }
+        .cal-day:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+        .cal-day.today { border-color: var(--brand); border-width: 2px; background: var(--brand-lite); }
+        .cal-day.other-month { background: var(--surface); opacity: 0.5; }
+        .cal-day-num {
+            font-size: 0.8rem; font-weight: 700; margin-bottom: 4px;
+            width: 24px; height: 24px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .today .cal-day-num { background: var(--brand); color: white; }
+        .cal-pill {
+            font-size: 0.65rem; padding: 2px 5px; border-radius: 4px;
+            margin-bottom: 2px; cursor: pointer;
+            display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            border-left: 2px solid;
+        }
+        .cal-pill.submitted { background: #dbeafe; border-color: var(--brand); color: var(--brand); }
+        .cal-pill.approved  { background: #d1fae5; border-color: var(--accent); color: #065f46; }
+        .cal-pill.draft     { background: #f1f5f9; border-color: var(--muted); color: var(--muted); }
+
+        /* ═══════════════════════════════════════ APPROVAL CARDS */
+        .approval-band {
+            border-left: 4px solid var(--warn);
+            background: #fffbeb; border-radius: var(--radius);
+            padding: 1rem 1.25rem; margin-bottom: 1rem;
+        }
+
+        /* ═══════════════════════════════════════ EXPENSE TABLE */
+        .exp-table { width: 100%; border-collapse: collapse; }
+        .exp-table th {
+            font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em;
+            color: var(--muted); padding: 0.5rem 0.75rem;
+            background: var(--surface); border-bottom: 2px solid var(--border);
+            text-align: left;
+        }
+        .exp-table td { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+        .exp-table tfoot td { background: var(--surface); font-weight: 700; }
+
+        /* ═══════════════════════════════════════ BUTTONS */
+        .btn { border-radius: 8px; font-weight: 500; }
+        .btn-brand { background: var(--brand); color: white; border: none; }
+        .btn-brand:hover { background: var(--brand-mid); color: white; }
+        .btn-accent { background: var(--accent); color: var(--dark); border: none; }
+        .btn-accent:hover { background: #00b082; }
+
+        /* ═══════════════════════════════════════ FAB */
+        .fab {
+            position: fixed; bottom: calc(80px + env(safe-area-inset-bottom));
+            right: 1.25rem; z-index: 990;
+            width: 52px; height: 52px; border-radius: 50%;
+            background: var(--accent); color: var(--dark);
+            border: none; box-shadow: 0 4px 16px rgba(0,200,150,0.4);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.3rem; cursor: pointer; transition: all 0.2s;
+        }
+        .fab:hover { transform: scale(1.08); box-shadow: 0 6px 20px rgba(0,200,150,0.5); }
+        @media (min-width: 769px) { .fab { display: none; } }
+
+        /* ═══════════════════════════════════════ MISC */
+        .divider { height: 1px; background: var(--border); margin: 1rem 0; }
+        .mono { font-family: 'IBM Plex Mono', monospace; }
+        .text-accent { color: var(--accent) !important; }
+        .text-brand { color: var(--brand) !important; }
+        .step-dots {
+            display: flex; align-items: center; gap: 4px;
+        }
+        .step-dot {
+            width: 20px; height: 20px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.55rem; font-weight: 700; flex-shrink: 0;
+        }
+        .step-line { width: 16px; height: 2px; flex-shrink: 0; }
+        .step-done  { background: var(--accent); color: white; }
+        .step-curr  { background: var(--warn); color: white; }
+        .step-next  { background: var(--border); color: var(--muted); }
+        .step-line-done { background: var(--accent); }
+        .step-line-pend { background: var(--border); }
+    </style>
+</head>
+<body>
+
+<!-- ════════════════════════ TOP NAV ════════════════════════ -->
+<nav class="topnav">
+    <a class="brand" onclick="showView('dashboard')">
+        <div class="brand-icon"><i class="bi bi-calendar-check"></i></div>
+        <span class="desktop-nav">Field Activities</span>
+    </a>
+    <a href="/" class="btn btn-light ms-3" style="font-weight:500;">← Back to Main Dashboard</a>
+    <ul class="navbar-nav flex-row gap-1 ms-4 desktop-nav" id="desktopNavLinks">
+        <li><button class="topnav-btn px-3 text-white" style="width:auto;font-size:0.85rem;font-weight:500;" onclick="showView('dashboard')"><i class="bi bi-speedometer2 me-1"></i>Dashboard</button></li>
+        <li><button class="topnav-btn px-3 text-white" style="width:auto;font-size:0.85rem;font-weight:500;" onclick="showView('list')"><i class="bi bi-list-ul me-1"></i>Activities</button></li>
+        <li><button class="topnav-btn px-3 text-white" style="width:auto;font-size:0.85rem;font-weight:500;" onclick="showView('calendar')"><i class="bi bi-calendar3 me-1"></i>Calendar</button></li>
+        <li><button class="topnav-btn px-3 text-white" style="width:auto;font-size:0.85rem;font-weight:500;" onclick="showView('create')"><i class="bi bi-plus-circle me-1"></i>New</button></li>
+    </ul>
+    <div class="topnav-right">
+        <button class="topnav-btn"><i class="bi bi-bell"></i></button>
+        <div class="topnav-user ms-1">
+            <div class="avatar" id="user-avatar">--</div>
+            <span class="desktop-nav" style="font-size:0.82rem;" id="user-name">Loading...</span>
+        </div>
+    </div>
+</nav>
+
+<!-- ════════════════════════ MOBILE BOTTOM NAV ════════════════════════ -->
+<nav class="mobile-nav" id="mobileNav">
+    <button class="mob-nav-btn active" onclick="showView('dashboard');setMobActive(this)">
+        <i class="bi bi-speedometer2"></i><span>Dashboard</span>
+    </button>
+    <button class="mob-nav-btn" onclick="showView('list');setMobActive(this)">
+        <i class="bi bi-list-ul"></i><span>Activities</span>
+    </button>
+    <button class="mob-nav-btn" onclick="showView('calendar');setMobActive(this)">
+        <i class="bi bi-calendar3"></i><span>Calendar</span>
+    </button>
+    <button class="mob-nav-btn" onclick="showView('create');setMobActive(this)">
+        <i class="bi bi-plus-circle"></i><span>New</span>
+    </button>
+</nav>
+
+<!-- Mobile FAB -->
+<button class="fab" onclick="showView('create')"><i class="bi bi-plus-lg"></i></button>
+
+<div class="container-fluid">
+    <!-- DASHBOARD VIEW -->
+<div id="view-dashboard" class="view active">
+<div class="page-wrap">
+    <div class="page-header">
+        <div>
+            <div class="page-title" id="greeting">Good morning, -- 👋</div>
+            <div class="page-subtitle" id="user-team">--</div>
+        </div>
+        <button class="btn btn-brand" onclick="showView('create')">
+            <i class="bi bi-plus-circle me-1"></i>New Activity
+        </button>
+    </div>
+
+    <!-- Stats -->
+    <div class="stat-grid mb-4">
+        <div class="stat-card">
+            <div class="stat-icon" style="background:#dbeafe;color:var(--brand)"><i class="bi bi-clipboard-data"></i></div>
+            <div class="stat-value" id="stat-total">--</div>
+            <div class="stat-label">Total Activities</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background:#fef3c7;color:#92400e"><i class="bi bi-hourglass-split"></i></div>
+            <div class="stat-value" id="stat-inprogress">--</div>
+            <div class="stat-label">In Progress</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background:#d1fae5;color:#065f46"><i class="bi bi-check-circle"></i></div>
+            <div class="stat-value" id="stat-approved">--</div>
+            <div class="stat-label">Approved</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background:#ede9fe;color:#5b21b6"><i class="bi bi-cash-stack"></i></div>
+            <div class="stat-value" style="font-size:1.1rem;" id="stat-budget">--</div>
+            <div class="stat-label">Total Budget (KES)</div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-8">
+            <!-- Active Activities -->
+            <div class="section-card mb-3">
+                <div class="section-head">
+                    <span><i class="bi bi-activity text-brand me-2"></i>Active Activities</span>
+                    <button class="btn btn-sm btn-outline-primary" onclick="showView('list')">View All</button>
+                </div>
+                <div class="section-body" style="padding:0.75rem;">
+                    <div id="activities-list"></div>
+                </div>
+            </div>
+
+            <!-- Recent Timeline -->
+            <div class="section-card">
+                <div class="section-head">
+                    <span><i class="bi bi-clock-history text-brand me-2"></i>Recent Updates</span>
+                </div>
+                <div class="section-body">
+                    <div class="timeline">
+                        <div class="tl-item">
+                            <div class="tl-dot blue"><i class="bi bi-camera-fill"></i></div>
+                            <div class="tl-text">Uploaded 3 photos from site visit</div>
+                            <div class="tl-time">Community Sensitization · Today, 10:30 AM</div>
+                        </div>
+                        <div class="tl-item">
+                            <div class="tl-dot green"><i class="bi bi-geo-alt-fill"></i></div>
+                            <div class="tl-text">GPS location captured at Nyali</div>
+                            <div class="tl-time">Community Sensitization · Today, 08:15 AM</div>
+                        </div>
+                        <div class="tl-item">
+                            <div class="tl-dot amber"><i class="bi bi-truck"></i></div>
+                            <div class="tl-text">Logged transport expense: KES 4,200</div>
+                            <div class="tl-time">Community Sensitization · Yesterday, 06:45 PM</div>
+                        </div>
+                        <div class="tl-item" style="padding-bottom:0;">
+                            <div class="tl-dot purple"><i class="bi bi-play-fill"></i></div>
+                            <div class="tl-text">Activity started</div>
+                            <div class="tl-time">Community Sensitization · Yesterday, 06:00 AM</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Budget Overview -->
+            <div class="section-card mb-3">
+                <div class="section-head"><span><i class="bi bi-pie-chart me-2 text-brand"></i>Budget Overview</span></div>
+                <div class="section-body">
+                    <div class="budget-row">
+                        <span class="b-label">Total Approved</span>
+                        <span class="b-value mono" id="budget-approved">--</span>
+                    </div>
+                    <div class="budget-row">
+                        <span class="b-label">Disbursed</span>
+                        <span class="b-value mono text-brand" id="budget-disbursed">--</span>
+                    </div>
+                    <div class="budget-row">
+                        <span class="b-label">Spent (Actual)</span>
+                        <span class="b-value mono" style="color:var(--warn)" id="budget-spent">--</span>
+                    </div>
+                    <div class="budget-row" style="border-bottom:none;">
+                        <span class="b-label">Balance Remaining</span>
+                        <span class="b-value mono text-accent" id="budget-balance">--</span>
+                    </div>
+                    <div style="height:8px;border-radius:999px;background:var(--border);margin-top:0.75rem;">
+                        <div style="height:100%;width:66%;border-radius:999px;background:linear-gradient(90deg,var(--brand),var(--accent));" id="budget-bar"></div>
+                    </div>
+                    <div style="font-size:0.72rem;color:var(--muted);margin-top:4px;" id="budget-utilized">--</div>
+                </div>
+            </div>
+
+            <!-- Pending Actions -->
+            <div class="section-card">
+                <div class="section-head"><span><i class="bi bi-bell text-warn me-2"></i>Pending Actions</span></div>
+                <div class="section-body" style="padding:0.75rem;">
+                    <div style="border:1px solid #fde68a;border-radius:8px;padding:0.75rem;background:#fffbeb;margin-bottom:0.5rem;">
+                        <div style="font-size:0.82rem;font-weight:600;">Supervisor Review Needed</div>
+                        <div style="font-size:0.75rem;color:var(--muted);">Community Sensitization · 2 days ago</div>
+                        <button class="btn btn-sm btn-brand mt-2 w-100" onclick="showView('detail');switchTab('overview')">Review Activity</button>
+                    </div>
+                    <div style="border:1px solid var(--border);border-radius:8px;padding:0.75rem;background:white;">
+                        <div style="font-size:0.82rem;font-weight:600;">GPS Pending Verification</div>
+                        <div style="font-size:0.75rem;color:var(--muted);">Mombasa CBD → Nyali route</div>
+                        <button class="btn btn-sm btn-outline-secondary mt-2 w-100" onclick="showView('detail');switchTab('field')">Update Transport</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     LIST VIEW
+════════════════════════════════════════════════════════ -->
+<div id="view-list" class="view">
+<div class="page-wrap">
+    <div class="page-header">
+        <div>
+            <div class="page-title">📋 Field Activities</div>
+            <div class="page-subtitle">Manage planned activities, expenses & logistics</div>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary" onclick="showView('calendar')"><i class="bi bi-calendar3 me-1"></i><span class="desktop-nav">Calendar</span></button>
+            <button class="btn btn-brand" onclick="showView('create')"><i class="bi bi-plus-circle me-1"></i>New</button>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-bar">
+        <input type="text" class="form-control form-control-sm" style="max-width:200px;" placeholder="Search...">
+        <select class="form-select form-select-sm" style="max-width:160px;"><option>All Teams</option><option>North Coast</option><option>South Region</option><option>Central Team</option></select>
+        <select class="form-select form-select-sm" style="max-width:150px;"><option>All Statuses</option><option>Draft</option><option>Submitted</option><option>Approved</option></select>
+        <input type="date" class="form-control form-control-sm" style="max-width:140px;">
+        <button class="btn btn-brand btn-sm"><i class="bi bi-funnel"></i></button>
+    </div>
+
+    <!-- Activity Cards -->
+    <div class="activity-card submitted" onclick="showView('detail')">
+        <div class="d-flex justify-content-between align-items-start">
+            <div style="flex:1;">
+                <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                    <span class="badge-pill bp-submitted">Submitted</span>
+                    <span class="badge-pill bp-progress">65% Complete</span>
+                </div>
+                <div class="fw-bold mb-1">Community Sensitization – Mombasa North</div>
+                <div class="text-muted small mb-2">Awareness sessions on project objectives in 3 sub-locations across Mombasa North district.</div>
+                <div class="d-flex gap-3 flex-wrap" style="font-size:0.78rem;">
+                    <span class="text-muted"><i class="bi bi-people me-1"></i><span class="activity-team"></span></span>
+                    <span class="text-muted"><i class="bi bi-person me-1"></i><span class="activity-user"></span></span>
+                    <span class="text-muted"><i class="bi bi-calendar3 me-1"></i><span class="activity-dates"></span></span>
+                    <span class="mono text-brand fw-semibold activity-budget"></span>
+                </div>
+            </div>
+            <div class="ms-3 text-end d-none d-md-block" style="min-width:140px;">
+                <div class="step-dots justify-content-end mb-2">
+                    <div class="step-dot step-done"><i class="bi bi-check" style="font-size:0.55rem;"></i></div>
+                    <div class="step-line step-line-done"></div>
+                    <div class="step-dot step-curr">2</div>
+                    <div class="step-line step-line-pend"></div>
+                    <div class="step-dot step-next">3</div>
+                    <div class="step-line step-line-pend"></div>
+                    <div class="step-dot step-next">4</div>
+                </div>
+                <div class="text-muted mb-2" style="font-size:0.72rem;">Awaiting supervisor</div>
+                <button class="btn btn-sm btn-outline-primary">View <i class="bi bi-arrow-right ms-1"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="activity-card approved" onclick="showView('detail')">
+        <div class="d-flex justify-content-between align-items-start">
+            <div style="flex:1;">
+                <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                    <span class="badge-pill bp-approved">PM Approved</span>
+                </div>
+                <div class="fw-bold mb-1">Data Collection – Kilifi County</div>
+                <div class="text-muted small mb-2">Baseline survey in 5 villages, targeting 200 households.</div>
+                <div class="d-flex gap-3 flex-wrap" style="font-size:0.78rem;">
+                    <span class="text-muted"><i class="bi bi-people me-1"></i>South Region Team</span>
+                    <span class="text-muted"><i class="bi bi-person me-1"></i>Peter Kamau</span>
+                    <span class="text-muted"><i class="bi bi-calendar3 me-1"></i>27 Feb – 1 Mar 2026</span>
+                    <span class="mono text-accent fw-semibold">KES 64,600</span>
+                </div>
+            </div>
+            <div class="ms-3 text-end d-none d-md-block" style="min-width:140px;">
+                <div class="step-dots justify-content-end mb-2">
+                    <div class="step-dot step-done"><i class="bi bi-check" style="font-size:0.55rem;"></i></div>
+                    <div class="step-line step-line-done"></div>
+                    <div class="step-dot step-done"><i class="bi bi-check" style="font-size:0.55rem;"></i></div>
+                    <div class="step-line step-line-done"></div>
+                    <div class="step-dot step-done"><i class="bi bi-check" style="font-size:0.55rem;"></i></div>
+                    <div class="step-line step-line-pend"></div>
+                    <div class="step-dot step-curr">4</div>
+                </div>
+                <div class="text-muted mb-2" style="font-size:0.72rem;">Awaiting funding</div>
+                <button class="btn btn-sm btn-outline-primary">View <i class="bi bi-arrow-right ms-1"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="activity-card funded" onclick="showView('detail')">
+        <div class="d-flex justify-content-between align-items-start">
+            <div style="flex:1;">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <span class="badge-pill bp-funded">Funded</span>
+                    <span class="badge-pill bp-progress">In Progress</span>
+                </div>
+                <div class="fw-bold mb-1">Focus Group Discussion – Lamu</div>
+                <div class="text-muted small mb-2">Focused discussions with community groups on livelihood impacts and coping strategies.</div>
+                <div class="d-flex gap-3 flex-wrap" style="font-size:0.78rem;">
+                    <span class="text-muted"><i class="bi bi-people me-1"></i>North Coast Team</span>
+                    <span class="text-muted"><i class="bi bi-calendar3 me-1"></i>20–22 Feb 2026</span>
+                    <span class="mono" style="color:var(--purple);font-weight:600;">KES 45,000</span>
+                </div>
+            </div>
+            <div class="ms-3 text-end d-none d-md-block" style="min-width:140px;">
+                <div style="height:6px;border-radius:999px;background:var(--border);margin-bottom:4px;">
+                    <div style="height:100%;width:40%;border-radius:999px;background:var(--purple);"></div>
+                </div>
+                <div class="text-muted mb-2" style="font-size:0.72rem;">40% complete</div>
+                <button class="btn btn-sm btn-outline-primary">View <i class="bi bi-arrow-right ms-1"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="activity-card draft" onclick="showView('create')">
+        <div class="d-flex justify-content-between align-items-start">
+            <div style="flex:1;">
+                <span class="badge-pill bp-draft mb-1">Draft</span>
+                <div class="fw-bold mb-1">Training Workshop – Capacity Building</div>
+                <div class="text-muted small mb-2">3-day workshop on M&E tools and reporting for field staff.</div>
+                <div class="d-flex gap-3 flex-wrap" style="font-size:0.78rem;">
+                    <span class="text-muted"><i class="bi bi-people me-1"></i>Central Team</span>
+                    <span class="text-muted"><i class="bi bi-calendar3 me-1"></i>3–5 Mar 2026</span>
+                    <span class="mono text-muted fw-semibold">KES 84,500</span>
+                </div>
+            </div>
+            <div class="ms-3 text-end d-none d-md-block">
+                <button class="btn btn-sm btn-outline-secondary me-1"><i class="bi bi-pencil"></i></button>
+                <button class="btn btn-sm btn-brand"><i class="bi bi-send me-1"></i>Submit</button>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     DETAIL VIEW  (with tabs)
+════════════════════════════════════════════════════════ -->
+<div id="view-detail" class="view">
+<div class="page-wrap">
+    <!-- Breadcrumb + Header -->
+    <div class="breadcrumb-bar mb-1">
+        <a onclick="showView('list')">Activities</a>
+        <i class="bi bi-chevron-right" style="font-size:0.65rem;"></i>
+        <span>Community Sensitization</span>
+    </div>
+    <div class="page-header">
+        <div>
+            <div class="page-title">Community Sensitization – Mombasa North</div>
+            <div class="d-flex gap-2 flex-wrap align-items-center mt-1">
+                <span class="badge-pill bp-submitted"><i class="bi bi-send me-1"></i>Submitted</span>
+                <span class="badge-pill bp-progress"><i class="bi bi-activity me-1"></i>In Progress · 65%</span>
+                <span class="text-muted" style="font-size:0.78rem;"><i class="bi bi-people me-1"></i>North Coast Team · Jane Mwangi</span>
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-file-pdf me-1"></i><span class="desktop-nav">Export PDF</span></button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="showView('list')"><i class="bi bi-arrow-left me-1"></i>Back</button>
+        </div>
+    </div>
+
+    <!-- ▸▸ TAB NAVIGATION ◂◂ -->
+    <div class="detail-tabs">
+        <button class="d-tab active" id="tab-btn-overview" onclick="switchTab('overview')">
+            <i class="bi bi-info-circle"></i>
+            <span class="tab-label">Overview & Plan</span>
+        </button>
+        <button class="d-tab" id="tab-btn-field" onclick="switchTab('field')">
+            <i class="bi bi-broadcast"></i>
+            <span class="tab-label">Field Updates</span>
+            <span class="tab-badge">3</span>
+        </button>
+        <button class="d-tab" id="tab-btn-docs" onclick="switchTab('docs')">
+            <i class="bi bi-folder2-open"></i>
+            <span class="tab-label">Documents</span>
+            <span class="tab-badge">8</span>
+        </button>
+        <button class="d-tab" id="tab-btn-reconcile" onclick="switchTab('reconcile')">
+            <i class="bi bi-receipt-cutoff"></i>
+            <span class="tab-label">Reconciliation</span>
+        </button>
+    </div>
+
+    <!-- ════════════ TAB 1: OVERVIEW & PLAN ════════════ -->
+    <div class="tab-content-panel active" id="tab-overview">
+        <div class="tab-panel-card">
+            <div class="row g-3">
+                <div class="col-lg-8">
+
+                    <!-- Activity Info -->
+                    <div class="section-card">
+                        <div class="section-head">
+                            <span><i class="bi bi-info-circle text-brand me-2"></i>Activity Information</span>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="showView('create')"><i class="bi bi-pencil me-1"></i>Edit</button>
+                        </div>
+                        <div class="section-body">
+                            <div class="row g-3 mb-3">
+                                <div class="col-sm-3">
+                                    <div class="text-muted small">Start Date</div>
+                                    <div class="fw-semibold">24 Feb 2026</div>
+                                </div>
+                                <div class="col-sm-3">
+                                    <div class="text-muted small">End Date</div>
+                                    <div class="fw-semibold">26 Feb 2026</div>
+                                </div>
+                                <div class="col-sm-3">
+                                    <div class="text-muted small">Duration</div>
+                                    <div class="fw-semibold">3 days</div>
+                                </div>
+                                <div class="col-sm-3">
+                                    <div class="text-muted small">Location</div>
+                                    <div class="fw-semibold">Mombasa North</div>
+                                </div>
+                            </div>
+                            <div class="text-muted small mb-1">Description / Narration</div>
+                            <p class="mb-0" style="font-size:0.88rem;line-height:1.6;">Conduct awareness sessions on project objectives in 3 sub-locations across Mombasa North district. The sessions will engage community leaders, local officials, and residents to build understanding and support for upcoming project activities.</p>
+                        </div>
+                    </div>
+
+                    <!-- Programme Expenses -->
+                    <div class="section-card">
+                        <div class="section-head">
+                            <span><i class="bi bi-receipt text-accent me-2"></i>Programme Expenses (Planned)</span>
+                            <span class="mono fw-bold text-accent">KES 35,400</span>
+                        </div>
+                        <div class="section-body p-0">
+                            <table class="exp-table">
+                                <thead>
+                                    <tr><th>Description</th><th style="text-align:right;">Amount (KES)</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Daily Subsistence Allowance – 2 officers × 3 days</td><td class="text-end mono">18,000.00</td></tr>
+                                    <tr><td>Venue hire & refreshments</td><td class="text-end mono">12,000.00</td></tr>
+                                    <tr><td>Printed materials & stationery</td><td class="text-end mono">5,400.00</td></tr>
+                                </tbody>
+                                <tfoot>
+                                    <tr><td class="fw-bold">Total Expenses</td><td class="text-end mono text-accent fw-bold">KES 35,400.00</td></tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Transport Planned -->
+                    <div class="section-card">
+                        <div class="section-head">
+                            <span><i class="bi bi-truck text-brand me-2"></i>Planned Transport & Logistics</span>
+                            <span class="mono fw-bold text-brand">KES 8,200</span>
+                        </div>
+                        <div class="section-body">
+                            <div class="d-flex justify-content-between align-items-start py-2 border-bottom">
+                                <div>
+                                    <div class="d-flex gap-1 flex-wrap align-items-center mb-1">
+                                        <span class="badge bg-light text-dark border"><i class="bi bi-geo-alt-fill text-danger me-1"></i>Nairobi</span>
+                                        <i class="bi bi-arrow-right text-muted small"></i>
+                                        <span class="badge bg-light text-dark border"><i class="bi bi-geo-alt-fill text-accent me-1"></i>Mombasa</span>
+                                        <span class="badge bg-light text-dark border"><i class="bi bi-bus-front me-1"></i>Bus</span>
+                                    </div>
+                                    <div class="text-muted" style="font-size:0.78rem;">Return journey via Modern Coast</div>
+                                </div>
+                                <div class="mono fw-bold text-brand">4,200</div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-start py-2">
+                                <div>
+                                    <div class="d-flex gap-1 flex-wrap align-items-center mb-1">
+                                        <span class="badge bg-light text-dark border"><i class="bi bi-geo-alt-fill text-danger me-1"></i>Mombasa</span>
+                                        <i class="bi bi-arrow-right text-muted small"></i>
+                                        <span class="badge bg-light text-dark border"><i class="bi bi-geo-alt-fill text-accent me-1"></i>Nyali</span>
+                                        <span class="badge bg-light text-dark border"><i class="bi bi-bus-front me-1"></i>Matatu</span>
+                                    </div>
+                                    <div class="text-muted" style="font-size:0.78rem;">Daily commute to field sites × 3 days</div>
+                                </div>
+                                <div class="mono fw-bold text-brand">4,000</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Approval Block -->
+                    <div class="approval-band">
+                        <div class="fw-bold mb-1"><i class="bi bi-person-check me-2 text-warn"></i>Supervisor Review Required</div>
+                        <div class="text-muted small mb-3">Review the activity plan, expenses, and logistics before approving.</div>
+                        <div class="row g-2">
+                            <div class="col-md-8">
+                                <input type="text" class="form-control form-control-sm" placeholder="Comments (required for rejection)">
+                            </div>
+                            <div class="col-md-4 d-flex gap-2">
+                                <button class="btn btn-success btn-sm flex-grow-1" onclick="alert('Approved!');showView('list');">
+                                    <i class="bi bi-check-lg"></i> Approve
+                                </button>
+                                <button class="btn btn-danger btn-sm flex-grow-1"><i class="bi bi-x-lg"></i> Reject</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sidebar -->
+                <div class="col-lg-4">
+                    <div class="section-card mb-3" style="position:sticky;top:75px;">
+                        <div class="section-head"><i class="bi bi-calculator me-2 text-brand"></i>Budget Summary</div>
+                        <div class="section-body">
+                            <div class="budget-row"><span class="b-label">Programme Expenses</span><span class="b-value mono">35,400</span></div>
+                            <div class="budget-row"><span class="b-label">Transport & Logistics</span><span class="b-value mono">8,200</span></div>
+                            <div class="divider" style="margin:0.5rem 0;"></div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="fw-bold">Total Budget</span>
+                                <span class="fw-bold mono text-brand" style="font-size:1rem;">KES 43,600</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Approval Workflow -->
+                    <div class="section-card">
+                        <div class="section-head"><i class="bi bi-diagram-3 me-2 text-brand"></i>Approval Workflow</div>
+                        <div class="section-body">
+                            <div class="timeline">
+                                <div class="tl-item">
+                                    <div class="tl-dot green"><i class="bi bi-check"></i></div>
+                                    <div class="tl-text">Submitted by Agent</div>
+                                    <div class="tl-time">Jane Mwangi · 18 Feb 2026</div>
+                                </div>
+                                <div class="tl-item">
+                                    <div class="tl-dot amber"><i class="bi bi-person-check"></i></div>
+                                    <div class="tl-text">Supervisor Review</div>
+                                    <div class="tl-time">Awaiting · David Otieno</div>
+                                </div>
+                                <div class="tl-item">
+                                    <div class="tl-dot" style="background:#f1f5f9;color:#94a3b8;"><i class="bi bi-person-badge"></i></div>
+                                    <div class="tl-text" style="color:var(--muted);">PM Approval</div>
+                                    <div class="tl-time">Pending</div>
+                                </div>
+                                <div class="tl-item" style="padding-bottom:0;">
+                                    <div class="tl-dot" style="background:#f1f5f9;color:#94a3b8;"><i class="bi bi-bank"></i></div>
+                                    <div class="tl-text" style="color:var(--muted);">Finance & Disbursement</div>
+                                    <div class="tl-time">Pending</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════ TAB 2: FIELD UPDATES ════════════ -->
+    <div class="tab-content-panel" id="tab-field">
+        <div class="tab-panel-card">
+            <!-- Hero Progress Banner -->
+            <div class="update-area mb-4">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h5>Activity Progress</h5>
+                        <p>Mombasa North – Field Updates by Agent</p>
+                    </div>
+                    <span class="badge-pill bp-progress" style="background:rgba(255,255,255,0.2);color:white;">In Progress</span>
+                </div>
+                <div class="update-progress-bar">
+                    <div class="update-progress-fill" id="update-fill" style="width:65%;"></div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <span style="font-size:0.82rem;opacity:0.9;" id="update-pct-label">65% complete</span>
+                    <div class="d-flex align-items-center gap-2">
+                        <input type="range" style="width:100px;accent-color:var(--accent);" min="0" max="100" value="65"
+                               oninput="updateProgress(this.value)">
+                        <span id="update-pct-val" style="font-family:'IBM Plex Mono';font-size:0.9rem;font-weight:700;">65%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-lg-7">
+                    <!-- Quick Actions for Field Agent -->
+                    <div class="fw-bold mb-2" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);">Quick Actions</div>
+                    <div class="quick-actions mb-4">
+                        <button class="qa-btn" onclick="addProgressUpdate()">
+                            <div class="qa-icon" style="background:#dbeafe;color:var(--brand);"><i class="bi bi-pencil-square"></i></div>
+                            <span>Add Update Note</span>
+                        </button>
+                        <button class="qa-btn" onclick="captureGPS()">
+                            <div class="qa-icon" style="background:#d1fae5;color:#065f46;"><i class="bi bi-geo-alt-fill"></i></div>
+                            <span>Capture GPS</span>
+                        </button>
+                        <button class="qa-btn" onclick="document.getElementById('photoInput').click()">
+                            <div class="qa-icon" style="background:#fef3c7;color:#92400e;"><i class="bi bi-camera-fill"></i></div>
+                            <span>Upload Photos</span>
+                        </button>
+                        <button class="qa-btn" onclick="addTransport()">
+                            <div class="qa-icon" style="background:#ede9fe;color:#5b21b6;"><i class="bi bi-truck"></i></div>
+                            <span>Log Transport</span>
+                        </button>
+                    </div>
+                    <input type="file" id="photoInput" accept="image/*" multiple style="display:none;" onchange="handleUpload(this)">
+
+                    <!-- Transport Logs with GPS -->
+                    <div class="section-card mb-3">
+                        <div class="section-head">
+                            <span><i class="bi bi-map me-2 text-brand"></i>Transport Logs with GPS</span>
+                            <button class="btn btn-sm btn-outline-primary" onclick="addTransport()"><i class="bi bi-plus me-1"></i>Add</button>
+                        </div>
+                        <div class="section-body">
+                            <div class="transport-card">
+                                <div class="transport-route">
+                                    <i class="bi bi-geo-alt-fill text-danger"></i> Nairobi
+                                    <i class="bi bi-arrow-right text-muted"></i>
+                                    <i class="bi bi-geo-alt-fill text-accent"></i> Mombasa
+                                    <span class="badge bg-light text-dark border small"><i class="bi bi-bus-front me-1"></i>Bus</span>
+                                    <span class="mono fw-bold text-brand ms-auto">KES 4,200</span>
+                                </div>
+                                <div class="gps-badge gps-ok mb-2"><i class="bi bi-check-circle me-1"></i>GPS Verified</div>
+                                <div style="font-size:0.78rem;color:var(--muted);">
+                                    <i class="bi bi-geo-alt text-danger me-1"></i>Departure: <span class="mono">-1.2921, 36.8219</span> · 24 Feb, 06:30 AM<br>
+                                    <i class="bi bi-geo-alt text-accent me-1"></i>Arrival: <span class="mono">-4.0435, 39.6682</span> · 24 Feb, 02:15 PM
+                                </div>
+                            </div>
+
+                            <div class="transport-card">
+                                <div class="transport-route">
+                                    <i class="bi bi-geo-alt-fill text-danger"></i> Mombasa CBD
+                                    <i class="bi bi-arrow-right text-muted"></i>
+                                    <i class="bi bi-geo-alt-fill text-accent"></i> Nyali
+                                    <span class="badge bg-light text-dark border small"><i class="bi bi-bus-front me-1"></i>Matatu</span>
+                                    <span class="mono fw-bold text-brand ms-auto">KES 2,000</span>
+                                </div>
+                                <div class="gps-badge gps-pend mb-2"><i class="bi bi-clock me-1"></i>GPS Pending</div>
+                                <div style="font-size:0.78rem;color:var(--muted);">No GPS data captured yet.</div>
+                                <button class="btn btn-sm btn-outline-primary mt-2" onclick="captureGPS()">
+                                    <i class="bi bi-geo-alt me-1"></i>Capture GPS Now
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-5">
+                    <!-- Activity Timeline -->
+                    <div class="section-card">
+                        <div class="section-head">
+                            <span><i class="bi bi-clock-history me-2 text-brand"></i>Activity Timeline</span>
+                            <button class="btn btn-sm btn-outline-primary" onclick="addProgressUpdate()"><i class="bi bi-plus me-1"></i>Update</button>
+                        </div>
+                        <div class="section-body">
+                            <div class="timeline" id="field-timeline">
+                                <div class="tl-item">
+                                    <div class="tl-dot blue"><i class="bi bi-camera-fill"></i></div>
+                                    <div class="tl-text">Uploaded 3 photos from site visit</div>
+                                    <div class="tl-time">Today, 10:30 AM</div>
+                                </div>
+                                <div class="tl-item">
+                                    <div class="tl-dot green"><i class="bi bi-geo-alt-fill"></i></div>
+                                    <div class="tl-text">GPS location captured at Nyali</div>
+                                    <div class="tl-time">Today, 08:15 AM</div>
+                                </div>
+                                <div class="tl-item">
+                                    <div class="tl-dot amber"><i class="bi bi-truck"></i></div>
+                                    <div class="tl-text">Logged transport expense: KES 4,200</div>
+                                    <div class="tl-time">Yesterday, 06:45 PM</div>
+                                </div>
+                                <div class="tl-item" style="padding-bottom:0;">
+                                    <div class="tl-dot purple"><i class="bi bi-play-fill"></i></div>
+                                    <div class="tl-text">Activity started</div>
+                                    <div class="tl-time">Yesterday, 06:00 AM</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════ TAB 3: DOCUMENTS ════════════ -->
+    <div class="tab-content-panel" id="tab-docs">
+        <div class="tab-panel-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="fw-bold">8 files attached</div>
+                <button class="btn btn-brand btn-sm" onclick="document.getElementById('docUpload').click()">
+                    <i class="bi bi-upload me-1"></i>Upload Files
+                </button>
+                <input type="file" id="docUpload" multiple style="display:none;" onchange="handleUpload(this)">
+            </div>
+
+            <!-- Photos -->
+            <div class="fw-semibold mb-2" style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);">📸 Photos (5)</div>
+            <div class="docs-grid mb-4">
+                <div class="doc-card"><div class="doc-icon">🖼️</div><div><div class="doc-name">Site_Visit_Day1.jpg</div><div class="doc-size">2.4 MB · Today 10:30</div></div></div>
+                <div class="doc-card"><div class="doc-icon">🖼️</div><div><div class="doc-name">Community_Meeting.jpg</div><div class="doc-size">1.8 MB · Today 10:31</div></div></div>
+                <div class="doc-card"><div class="doc-icon">🖼️</div><div><div class="doc-name">Venue_Setup.jpg</div><div class="doc-size">1.5 MB · Yesterday</div></div></div>
+            </div>
+
+            <!-- Receipts -->
+            <div class="fw-semibold mb-2" style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);">🧾 Receipts (2)</div>
+            <div class="docs-grid mb-4">
+                <div class="doc-card"><div class="doc-icon">📄</div><div><div class="doc-name">Transport_Receipt_001.pdf</div><div class="doc-size">180 KB · Yesterday</div></div></div>
+                <div class="doc-card"><div class="doc-icon">📄</div><div><div class="doc-name">Venue_Invoice.pdf</div><div class="doc-size">220 KB · Yesterday</div></div></div>
+            </div>
+
+            <!-- Reports -->
+            <div class="fw-semibold mb-2" style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);">📑 Reports (1)</div>
+            <div class="docs-grid">
+                <div class="doc-card"><div class="doc-icon">📊</div><div><div class="doc-name">Progress_Report_Day1.pdf</div><div class="doc-size">450 KB · Today 09:00</div></div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════ TAB 4: RECONCILIATION ════════════ -->
+    <div class="tab-content-panel" id="tab-reconcile">
+        <div class="tab-panel-card">
+            <div class="row g-3">
+                <div class="col-lg-7">
+                    <!-- Budget Reconciliation -->
+                    <div class="recon-card mb-3">
+                        <div class="fw-bold mb-3" style="color:var(--dark);"><i class="bi bi-calculator me-2 text-accent"></i>Budget Reconciliation</div>
+                        <div class="recon-row"><span class="b-label">Original Budget (Programme)</span><span class="mono">KES 35,400</span></div>
+                        <div class="recon-row"><span class="b-label">Original Budget (Transport)</span><span class="mono">KES 8,200</span></div>
+                        <div class="recon-row"><span class="b-label"><strong>Total Approved Budget</strong></span><span class="mono fw-bold">KES 43,600</span></div>
+                        <div class="recon-row"><span class="b-label">Actual Programme Spent</span><span class="mono text-brand">KES 34,100</span></div>
+                        <div class="recon-row"><span class="b-label">Actual Transport Spent</span><span class="mono text-brand">KES 7,900</span></div>
+                        <div class="recon-row"><span class="b-label"><strong>Total Actual Spent</strong></span><span class="mono fw-bold text-brand">KES 42,000</span></div>
+                        <div class="recon-total">
+                            <span class="text-accent">Balance to Return</span>
+                            <span class="mono text-accent" style="font-size:1.2rem;">KES 1,600</span>
+                        </div>
+                    </div>
+
+                    <!-- Actual Expenses Log -->
+                    <div class="section-card">
+                        <div class="section-head">
+                            <span><i class="bi bi-receipt me-2 text-brand"></i>Actual Expenses Logged</span>
+                            <button class="btn btn-sm btn-outline-primary"><i class="bi bi-plus me-1"></i>Add Expense</button>
+                        </div>
+                        <div class="section-body p-0">
+                            <table class="exp-table">
+                                <thead>
+                                    <tr><th>Description</th><th>Date</th><th style="text-align:right;">Actual (KES)</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>DSA – Jane Mwangi (3 days)</td><td style="font-size:0.78rem;color:var(--muted);">24–26 Feb</td><td class="text-end mono">9,000.00</td></tr>
+                                    <tr><td>DSA – Support Staff (3 days)</td><td style="font-size:0.78rem;color:var(--muted);">24–26 Feb</td><td class="text-end mono">9,000.00</td></tr>
+                                    <tr><td>Venue hire – Nyali Hall</td><td style="font-size:0.78rem;color:var(--muted);">24 Feb</td><td class="text-end mono">8,500.00</td></tr>
+                                    <tr><td>Refreshments (participants)</td><td style="font-size:0.78rem;color:var(--muted);">24–26 Feb</td><td class="text-end mono">3,200.00</td></tr>
+                                    <tr><td>Printed materials</td><td style="font-size:0.78rem;color:var(--muted);">24 Feb</td><td class="text-end mono">4,400.00</td></tr>
+                                    <tr><td>Transport – Nairobi → Mombasa</td><td style="font-size:0.78rem;color:var(--muted);">24 Feb</td><td class="text-end mono">4,200.00</td></tr>
+                                    <tr><td>Transport – Mombasa → Nyali (3 days)</td><td style="font-size:0.78rem;color:var(--muted);">24–26 Feb</td><td class="text-end mono">3,700.00</td></tr>
+                                </tbody>
+                                <tfoot>
+                                    <tr><td class="fw-bold" colspan="2">Total Actual</td><td class="text-end mono text-brand fw-bold">KES 42,000.00</td></tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-5">
+                    <!-- Final Report Upload -->
+                    <div class="section-card mb-3">
+                        <div class="section-head"><i class="bi bi-file-earmark-check me-2 text-accent"></i>Final Activity Report</div>
+                        <div class="section-body">
+                            <div style="border:2px dashed var(--border);border-radius:var(--radius);padding:1.5rem;text-align:center;cursor:pointer;transition:all 0.2s;"
+                                 onmouseover="this.style.borderColor='var(--brand)'" onmouseout="this.style.borderColor='var(--border)'"
+                                 onclick="document.getElementById('reportInput').click()">
+                                <i class="bi bi-cloud-upload" style="font-size:2rem;color:var(--muted);display:block;margin-bottom:0.5rem;"></i>
+                                <div style="font-size:0.85rem;color:var(--muted);">Click to upload final report</div>
+                                <div style="font-size:0.75rem;color:var(--muted);margin-top:4px;">PDF, Word, or Excel</div>
+                            </div>
+                            <input type="file" id="reportInput" style="display:none;" onchange="handleUpload(this)">
+                        </div>
+                    </div>
+
+                    <!-- Submit for Closure -->
+                    <div class="section-card" style="border-color:var(--accent);">
+                        <div class="section-head" style="background:linear-gradient(135deg,#d1fae5,#ecfdf5);"><i class="bi bi-send-check me-2 text-accent"></i>Submit for Closure</div>
+                        <div class="section-body">
+                            <div class="budget-row"><span class="b-label">Original Budget</span><span class="mono">KES 43,600</span></div>
+                            <div class="budget-row"><span class="b-label">Actual Spent</span><span class="mono text-brand">KES 42,000</span></div>
+                            <div class="budget-row" style="border:none;"><span class="b-label fw-bold text-accent">Balance to Return</span><span class="mono fw-bold text-accent">KES 1,600</span></div>
+                            <div class="divider"></div>
+                            <div class="text-muted small mb-3">Submitting will lock all updates and send for final review and financial closure.</div>
+                            <button class="btn btn-accent w-100 fw-bold" onclick="submitClosure()">
+                                <i class="bi bi-check2-all me-2"></i>Submit for Final Review
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div><!-- /page-wrap -->
+</div><!-- /view-detail -->
+
+<!-- ════════════════════════════════════════════════════════
+     CREATE VIEW
+════════════════════════════════════════════════════════ -->
+<div id="view-create" class="view">
+<div class="page-wrap">
+    <div class="breadcrumb-bar mb-1">
+        <a onclick="showView('list')">Activities</a>
+        <i class="bi bi-chevron-right" style="font-size:0.65rem;"></i>
+        <span>New Activity</span>
+    </div>
+    <div class="page-header">
+        <div class="page-title">➕ New Field Activity</div>
+        <button class="btn btn-sm btn-outline-secondary" onclick="showView('list')"><i class="bi bi-arrow-left me-1"></i>Back</button>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-8">
+            <div class="form-section">
+                <div class="form-head"><i class="bi bi-info-circle me-2"></i>1. Activity Information</div>
+                <div class="form-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Activity Title <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" placeholder="e.g. Community Sensitization – Mombasa North">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Narration / Description <span class="text-danger">*</span></label>
+                        <textarea class="form-control" rows="4" placeholder="Describe the purpose, objectives and expected outcomes..."></textarea>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Field Team <span class="text-danger">*</span></label>
+                            <select class="form-select"><option>Select team...</option><option>North Coast Team</option><option>South Region Team</option><option>Central Team</option></select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Start Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" value="2026-02-24">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">End Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" value="2026-02-26">
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="form-label fw-semibold">Location / Area</label>
+                        <input type="text" class="form-control" placeholder="e.g. Kilifi County, Sub-county X">
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-head"><i class="bi bi-receipt me-2"></i>2. Programme Expenses (Planned Budget)</div>
+                <div class="form-body">
+                    <p class="text-muted small mb-3">Add all direct programme costs (DSA, meals, venue, materials, etc.)</p>
+                    <div id="expenses-container">
+                        <div class="expense-row row g-2 mb-2 p-2 bg-light rounded border">
+                            <div class="col-md-6"><input type="text" class="form-control form-control-sm" placeholder="Description (e.g. DSA – 2 officers × 3 days)"></div>
+                            <div class="col-md-3"><select class="form-select form-select-sm"><option>DSA</option><option>Venue Hire</option><option>Meals</option><option>Materials</option><option>Other</option></select></div>
+                            <div class="col-md-2"><input type="number" class="form-control form-control-sm expense-amt" placeholder="Amount"></div>
+                            <div class="col-md-1 d-flex align-items-center"><button class="btn btn-sm text-danger p-0 border-0" onclick="this.closest('.expense-row').remove()"><i class="bi bi-x-circle"></i></button></div>
+                        </div>
+                    </div>
+                    <button class="btn btn-outline-primary btn-sm" onclick="addExpenseRow()"><i class="bi bi-plus me-1"></i>Add Expense Line</button>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-head"><i class="bi bi-truck me-2"></i>3. Transport & Logistics (Planned)</div>
+                <div class="form-body">
+                    <div id="logistics-container">
+                        <div class="logistics-row row g-2 mb-2 p-2 bg-light rounded border">
+                            <div class="col-md-3"><input type="text" class="form-control form-control-sm" placeholder="From"></div>
+                            <div class="col-md-3"><input type="text" class="form-control form-control-sm" placeholder="To"></div>
+                            <div class="col-md-2"><select class="form-select form-select-sm"><option>Bus</option><option>Matatu</option><option>Car</option><option>Boda</option></select></div>
+                            <div class="col-md-2"><input type="number" class="form-control form-control-sm logistics-amt" placeholder="Cost"></div>
+                            <div class="col-md-1 d-flex align-items-center"><button class="btn btn-sm text-danger p-0 border-0" onclick="this.closest('.logistics-row').remove()"><i class="bi bi-x-circle"></i></button></div>
+                        </div>
+                    </div>
+                    <button class="btn btn-outline-primary btn-sm" onclick="addLogisticsRow()"><i class="bi bi-plus me-1"></i>Add Journey</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="section-card mb-3" style="position:sticky;top:75px;">
+                <div class="section-head"><i class="bi bi-calculator me-2 text-brand"></i>Budget Summary</div>
+                <div class="section-body">
+                    <div class="budget-row"><span class="b-label">Programme Expenses</span><span class="b-value mono" id="sum-expenses">KES 0</span></div>
+                    <div class="budget-row"><span class="b-label">Transport & Logistics</span><span class="b-value mono" id="sum-logistics">KES 0</span></div>
+                    <div class="divider"></div>
+                    <div class="d-flex justify-content-between">
+                        <span class="fw-bold">Total Budget</span>
+                        <span class="fw-bold mono text-brand" id="sum-total">KES 0</span>
+                    </div>
+                </div>
+            </div>
+            <div class="section-card">
+                <div class="section-body d-grid gap-2">
+                    <button class="btn btn-outline-secondary" onclick="showView('list')"><i class="bi bi-floppy me-2"></i>Save as Draft</button>
+                    <button class="btn btn-brand" onclick="alert('Activity submitted!');showView('list')"><i class="bi bi-send me-2"></i>Submit for Approval</button>
+                </div>
+                <div class="p-2 text-muted text-center" style="font-size:0.75rem;">Drafts can be edited before submission.</div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     CALENDAR VIEW
+════════════════════════════════════════════════════════ -->
+<div id="view-calendar" class="view">
+<div class="page-wrap">
+    <div class="page-header">
+        <div>
+            <div class="page-title">📅 Calendar</div>
+            <div class="page-subtitle">Field activity schedules overview</div>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary btn-sm" onclick="showView('list')"><i class="bi bi-list-ul me-1"></i>List</button>
+            <button class="btn btn-brand btn-sm" onclick="showView('create')"><i class="bi bi-plus me-1"></i>New</button>
+        </div>
+    </div>
+
+    <div class="section-card mb-3">
+        <div class="section-body py-2 d-flex flex-wrap gap-2 align-items-center">
+            <span class="text-muted small fw-semibold">Teams:</span>
+            <button class="btn btn-sm btn-brand">All Teams</button>
+            <button class="btn btn-sm btn-outline-primary">North Coast</button>
+            <button class="btn btn-sm btn-outline-success">South Region</button>
+            <button class="btn btn-sm btn-outline-warning">Central Team</button>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <button class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-left"></i></button>
+        <div class="text-center">
+            <div class="fw-bold">February 2026</div>
+            <div class="text-muted" style="font-size:0.78rem;">Budget: <strong class="text-brand">KES 285,600</strong> · Activities: 8</div>
+        </div>
+        <button class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-right"></i></button>
+    </div>
+
+    <div class="section-card">
+        <div class="section-body p-2">
+            <div class="cal-grid mb-2">
+                <div class="cal-day-head">Sun</div>
+                <div class="cal-day-head">Mon</div>
+                <div class="cal-day-head">Tue</div>
+                <div class="cal-day-head">Wed</div>
+                <div class="cal-day-head">Thu</div>
+                <div class="cal-day-head">Fri</div>
+                <div class="cal-day-head">Sat</div>
+            </div>
+            <div class="cal-grid">
+                <div class="cal-day other-month"><div class="cal-day-num">26</div></div>
+                <div class="cal-day other-month"><div class="cal-day-num">27</div></div>
+                <div class="cal-day other-month"><div class="cal-day-num">28</div></div>
+                <div class="cal-day other-month"><div class="cal-day-num">29</div></div>
+                <div class="cal-day other-month"><div class="cal-day-num">30</div></div>
+                <div class="cal-day other-month"><div class="cal-day-num">31</div></div>
+                <div class="cal-day"><div class="cal-day-num">1</div></div>
+                <div class="cal-day"><div class="cal-day-num">2</div></div>
+                <div class="cal-day"><div class="cal-day-num">3</div><span class="cal-pill draft" onclick="showView('detail')">Training WS</span></div>
+                <div class="cal-day"><div class="cal-day-num">4</div><span class="cal-pill draft" onclick="showView('detail')">Training WS</span></div>
+                <div class="cal-day"><div class="cal-day-num">5</div><span class="cal-pill draft" onclick="showView('detail')">Training WS</span></div>
+                <div class="cal-day"><div class="cal-day-num">6</div></div>
+                <div class="cal-day"><div class="cal-day-num">7</div></div>
+                <div class="cal-day"><div class="cal-day-num">8</div></div>
+                <div class="cal-day"><div class="cal-day-num">9</div></div>
+                <div class="cal-day"><div class="cal-day-num">10</div></div>
+                <div class="cal-day"><div class="cal-day-num">11</div></div>
+                <div class="cal-day"><div class="cal-day-num">12</div></div>
+                <div class="cal-day"><div class="cal-day-num">13</div></div>
+                <div class="cal-day"><div class="cal-day-num">14</div></div>
+                <div class="cal-day"><div class="cal-day-num">15</div></div>
+                <div class="cal-day"><div class="cal-day-num">16</div></div>
+                <div class="cal-day"><div class="cal-day-num">17</div></div>
+                <div class="cal-day"><div class="cal-day-num">18</div></div>
+                <div class="cal-day"><div class="cal-day-num">19</div></div>
+                <div class="cal-day today">
+                    <div class="cal-day-num">20</div>
+                    <span class="cal-pill approved" onclick="showView('detail')">FGD Lamu</span>
+                </div>
+                <div class="cal-day"><div class="cal-day-num">21</div><span class="cal-pill approved" onclick="showView('detail')">FGD Lamu</span></div>
+                <div class="cal-day"><div class="cal-day-num">22</div><span class="cal-pill approved" onclick="showView('detail')">FGD Lamu</span></div>
+                <div class="cal-day"><div class="cal-day-num">23</div></div>
+                <div class="cal-day"><div class="cal-day-num">24</div><span class="cal-pill submitted" onclick="showView('detail')">Community Sens.</span></div>
+                <div class="cal-day"><div class="cal-day-num">25</div><span class="cal-pill submitted" onclick="showView('detail')">Community Sens.</span></div>
+                <div class="cal-day"><div class="cal-day-num">26</div><span class="cal-pill submitted" onclick="showView('detail')">Community Sens.</span></div>
+                <div class="cal-day"><div class="cal-day-num">27</div><span class="cal-pill approved" onclick="showView('detail')">Data Coll.</span></div>
+                <div class="cal-day"><div class="cal-day-num">28</div><span class="cal-pill approved" onclick="showView('detail')">Data Coll.</span></div>
+                <div class="cal-day other-month"><div class="cal-day-num">1</div><span class="cal-pill approved" onclick="showView('detail')">Data Coll.</span></div>
+                <div class="cal-day other-month"><div class="cal-day-num">2</div></div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+</div><!-- /container-fluid -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script>
+// Fetch user info, activities, and stats from backend
+async function fetchUserAndActivities() {
+    try {
+        // Fetch user info (use /api/me for Laravel default)
+        const userRes = await axios.get('/api/me');
+        const user = userRes.data;
+        document.getElementById('user-name').textContent = user.name;
+        document.getElementById('user-avatar').textContent = user.name.split(' ').map(n => n[0]).join('').toUpperCase();
+        document.getElementById('greeting').textContent = `Good morning, ${user.name.split(' ')[0]} 👋`;
+        document.getElementById('user-team').textContent = user.team || '';
+    } catch (e) {
+        document.getElementById('user-name').textContent = 'Unknown User';
+    }
+    try {
+        // Fetch activities
+        const res = await axios.get('/api/field-activities');
+        const activities = res.data;
+        const list = document.getElementById('activities-list');
+        list.innerHTML = '';
+        activities.forEach(activity => {
+            const card = document.createElement('div');
+            card.className = 'activity-card';
+            card.innerHTML = `
+                <div class="fw-bold mb-1">${activity.title}</div>
+                <div class="d-flex gap-3 flex-wrap" style="font-size:0.78rem;">
+                    <span class="text-muted"><i class="bi bi-people me-1"></i>${activity.team || ''}</span>
+                    <span class="text-muted"><i class="bi bi-person me-1"></i>${activity.created_by_name || ''}</span>
+                    <span class="text-muted"><i class="bi bi-calendar3 me-1"></i>${activity.start_date || ''} – ${activity.end_date || ''}</span>
+                    <span class="mono text-brand fw-semibold">KES ${activity.budget || ''}</span>
+                </div>
+            `;
+            list.appendChild(card);
+        });
+        // Fetch stats from activities
+        document.getElementById('stat-total').textContent = activities.length;
+        document.getElementById('stat-inprogress').textContent = activities.filter(a => a.status === 'in_progress').length;
+        document.getElementById('stat-approved').textContent = activities.filter(a => a.status === 'approved').length;
+        let totalBudget = 0;
+        activities.forEach(a => { totalBudget += parseFloat(a.budget) || 0; });
+        document.getElementById('stat-budget').textContent = 'KES ' + totalBudget.toLocaleString();
+        // Budget overview (use first activity as example, or aggregate as needed)
+        if (activities.length > 0) {
+            const a = activities[0];
+            document.getElementById('budget-approved').textContent = 'KES ' + (a.budget || '--');
+            document.getElementById('budget-disbursed').textContent = 'KES ' + (a.disbursed || '--');
+            document.getElementById('budget-spent').textContent = 'KES ' + (a.actual_spent || '--');
+            let balance = (parseFloat(a.budget) || 0) - (parseFloat(a.actual_spent) || 0);
+            document.getElementById('budget-balance').textContent = 'KES ' + balance;
+            let pct = a.budget && a.actual_spent ? Math.round((parseFloat(a.actual_spent) / parseFloat(a.budget)) * 100) : 0;
+            document.getElementById('budget-bar').style.width = pct + '%';
+            document.getElementById('budget-utilized').textContent = pct + '% of budget utilized';
+        }
+    } catch (e) {
+        document.getElementById('activities-list').innerHTML = '<div class="text-danger">Failed to load activities.</div>';
+    }
+}
+document.addEventListener('DOMContentLoaded', fetchUserAndActivities);
+</script>
+<script>
+// ════════════════════════════════════
+// VIEW SWITCHING
+// ════════════════════════════════════
+function showView(id) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    const target = document.getElementById('view-' + id);
+    if (target) target.classList.add('active');
+    window.scrollTo(0, 0);
+}
+
+function setMobActive(btn) {
+    document.querySelectorAll('.mob-nav-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+}
+
+// ════════════════════════════════════
+// TAB SWITCHING (DETAIL VIEW)
+// ════════════════════════════════════
+function switchTab(name) {
+    // Deactivate all tabs
+    document.querySelectorAll('.d-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content-panel').forEach(p => p.classList.remove('active'));
+    
+    const btn = document.getElementById('tab-btn-' + name);
+    const panel = document.getElementById('tab-' + name);
+    if (btn) btn.classList.add('active');
+    if (panel) panel.classList.add('active');
+}
+
+// ════════════════════════════════════
+// FIELD UPDATE FUNCTIONS
+// ════════════════════════════════════
+function updateProgress(val) {
+    document.getElementById('update-fill').style.width = val + '%';
+    document.getElementById('update-pct-val').textContent = val + '%';
+    document.getElementById('update-pct-label').textContent = val + '% complete';
+    addToTimeline('Updated progress to ' + val + '%', 'bi-graph-up', 'amber');
+}
+
+function addProgressUpdate() {
+    const note = prompt('Enter update note for this activity:');
+    if (note && note.trim()) {
+        addToTimeline(note, 'bi-pencil-square', 'blue');
+    }
+}
+
+function captureGPS() {
+    if (!navigator.geolocation) { alert('Geolocation not supported.'); return; }
+    navigator.geolocation.getCurrentPosition(
+        pos => {
+            const lat = pos.coords.latitude.toFixed(6);
+            const lon = pos.coords.longitude.toFixed(6);
+            addToTimeline('GPS captured: ' + lat + ', ' + lon, 'bi-geo-alt-fill', 'green');
+            alert('GPS captured: ' + lat + ', ' + lon);
+        },
+        err => { alert('Could not get location: ' + err.message); }
+    );
+}
+
+function addTransport() {
+    const from = prompt('From (departure):');
+    if (!from) return;
+    const to = prompt('To (destination):');
+    if (!to) return;
+    const amount = prompt('Transport cost (KES):');
+    if (!amount) return;
+    addToTimeline('Logged transport: ' + from + ' → ' + to + ' · KES ' + amount, 'bi-truck', 'purple');
+    alert('Transport logged: ' + from + ' → ' + to + ' · KES ' + amount);
+}
+
+function handleUpload(input) {
+    if (input.files.length > 0) {
+        const names = Array.from(input.files).map(f => f.name).join(', ');
+        addToTimeline('Uploaded: ' + names, 'bi-cloud-upload', 'blue');
+        alert(input.files.length + ' file(s) uploaded successfully.');
+    }
+}
+
+function addToTimeline(text, icon, color) {
+    const container = document.getElementById('field-timeline');
+    if (!container) return;
+    const item = document.createElement('div');
+    item.className = 'tl-item';
+    item.innerHTML = `
+        <div class="tl-dot ${color}"><i class="bi ${icon}"></i></div>
+        <div class="tl-text">${text}</div>
+        <div class="tl-time">Just now</div>
+    `;
+    container.insertBefore(item, container.firstChild);
+}
+
+function submitClosure() {
+    if (confirm('Submit this activity for final review and financial closure?\n\nBalance to return: KES 1,600\n\nThis will lock all further updates.')) {
+        addToTimeline('Activity submitted for closure. Balance to return: KES 1,600', 'bi-check-circle-fill', 'green');
+        alert('Activity submitted for final review!\nYou will be notified once approved.');
+        showView('list');
+    }
+}
+
+// ════════════════════════════════════
+// CREATE FORM FUNCTIONS
+// ════════════════════════════════════
+function addExpenseRow() {
+    const container = document.getElementById('expenses-container');
+    const div = document.createElement('div');
+    div.className = 'expense-row row g-2 mb-2 p-2 bg-light rounded border';
+    div.innerHTML = `
+        <div class="col-md-6"><input type="text" class="form-control form-control-sm" placeholder="Description"></div>
+        <div class="col-md-3"><select class="form-select form-select-sm"><option>DSA</option><option>Venue Hire</option><option>Meals</option><option>Materials</option><option>Other</option></select></div>
+        <div class="col-md-2"><input type="number" class="form-control form-control-sm expense-amt" placeholder="Amount" oninput="calcTotals()"></div>
+        <div class="col-md-1 d-flex align-items-center"><button class="btn btn-sm text-danger p-0 border-0" onclick="this.closest('.expense-row').remove();calcTotals()"><i class="bi bi-x-circle"></i></button></div>
+    `;
+    container.appendChild(div);
+}
+
+function addLogisticsRow() {
+    const container = document.getElementById('logistics-container');
+    const div = document.createElement('div');
+    div.className = 'logistics-row row g-2 mb-2 p-2 bg-light rounded border';
+    div.innerHTML = `
+        <div class="col-md-3"><input type="text" class="form-control form-control-sm" placeholder="From"></div>
+        <div class="col-md-3"><input type="text" class="form-control form-control-sm" placeholder="To"></div>
+        <div class="col-md-2"><select class="form-select form-select-sm"><option>Bus</option><option>Matatu</option><option>Car</option><option>Boda</option></select></div>
+        <div class="col-md-2"><input type="number" class="form-control form-control-sm logistics-amt" placeholder="Cost" oninput="calcTotals()"></div>
+        <div class="col-md-1 d-flex align-items-center"><button class="btn btn-sm text-danger p-0 border-0" onclick="this.closest('.logistics-row').remove();calcTotals()"><i class="bi bi-x-circle"></i></button></div>
+    `;
+    container.appendChild(div);
+}
+
+function calcTotals() {
+    let exp = 0, log = 0;
+    document.querySelectorAll('.expense-amt').forEach(el => exp += parseFloat(el.value) || 0);
+    document.querySelectorAll('.logistics-amt').forEach(el => log += parseFloat(el.value) || 0);
+    const fmt = n => 'KES ' + n.toLocaleString('en-KE', {minimumFractionDigits: 2});
+    const se = document.getElementById('sum-expenses');
+    const sl = document.getElementById('sum-logistics');
+    const st = document.getElementById('sum-total');
+    if (se) se.textContent = fmt(exp);
+    if (sl) sl.textContent = fmt(log);
+    if (st) st.textContent = fmt(exp + log);
+}
+
+// ════════════════════════════════════
+// PWA SERVICE WORKER
+// ════════════════════════════════════
+if ('serviceWorker' in navigator) {
+    // Minimal inline SW for offline cache (same-origin)
+    const swContent = `
+        const CACHE = 'fam-v1';
+        const ASSETS = [location.href];
+        self.addEventListener('install', e => {
+            e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
+        });
+        self.addEventListener('fetch', e => {
+            e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+        });
+    `;
+    
+}
+
+document.addEventListener('DOMContentLoaded', calcTotals);
+</script>
+</body>
+</html>

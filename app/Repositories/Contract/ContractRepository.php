@@ -16,6 +16,7 @@ class ContractRepository
                 $startDate = Carbon::parse($contract->start_date);
                 $expiryDate = $startDate->copy()->addDays($contract->number_of_days);
                 $daysRemaining = now()->diffInDays($expiryDate, false);
+                $daysRemaining = $daysRemaining < 0 ? 0 : (int)$daysRemaining;
 
                 return [
                     'id' => $contract->id,
@@ -23,7 +24,7 @@ class ContractRepository
                     'start_date' => $startDate->toDateString(),
                     'expiry_date' => $expiryDate->toDateString(),
                     'days_remaining' => $daysRemaining,
-                    'is_expired' => $daysRemaining < 0,
+                    'is_expired' => $daysRemaining === 0,
                 ];
             })
             ->filter(function ($contract) {

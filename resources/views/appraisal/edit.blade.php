@@ -29,6 +29,28 @@
                 </div>
             </div>
 
+            <!-- Duration Type and Duration Time Side by Side -->
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="duration_type">@lang('Duration Type')</label>
+                        <select class="form-control" id="duration_type" name="duration_type">
+                            <option value="">@lang('Select duration type')</option>
+                            <option value="days" {{ old('duration_type', $appraisal->duration_type) == 'days' ? 'selected' : '' }}>@lang('Days')</option>
+                            <option value="months" {{ old('duration_type', $appraisal->duration_type) == 'months' ? 'selected' : '' }}>@lang('Months')</option>
+                            <option value="years" {{ old('duration_type', $appraisal->duration_type) == 'years' ? 'selected' : '' }}>@lang('Years')</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="duration_amount">@lang('Duration Time')</label>
+                        <input type="number" class="form-control" id="duration_amount" name="duration_amount" min="1" value="{{ old('duration_amount', $appraisal->duration_amount) }}">
+                        <small class="form-text text-muted">@lang('Specify the duration value based on the selected type (years, months, or days).')</small>
+                    </div>
+                </div>
+            </div>
+
             <!-- Ratings Title Styling -->
             <label class="mt-4 mb-2 medium h5">@lang('Ratings')</label>
 

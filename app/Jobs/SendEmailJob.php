@@ -9,7 +9,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
-use Vanguard\Email; // <-- Make sure this is imported
+use Vanguard\Email;
 
 class SendEmailJob implements ShouldQueue
 {
@@ -18,52 +18,63 @@ class SendEmailJob implements ShouldQueue
     protected $recipient;
     protected $subject;
     protected $message;
+    protected $attachmentPaths;
+    protected $attachmentOriginalNames;
 
-    public function __construct($recipient, $subject, $message)
+    public function __construct($recipient, $subject, $message, $attachmentPaths = null, $attachmentOriginalNames = null)
     {
-        $this->recipient = $recipient;
-        $this->subject   = $subject;
-        $this->message   = $message;
+        $this->recipient            = $recipient;
+        $this->subject              = $subject;
+        $this->message              = $message;
+        $this->attachmentPaths      = is_array($attachmentPaths) ? $attachmentPaths : ($attachmentPaths ? [$attachmentPaths] : []);
+        $this->attachmentOriginalNames = is_array($attachmentOriginalNames) ? $attachmentOriginalNames : ($attachmentOriginalNames ? [$attachmentOriginalNames] : []);
     }
 
     public function handle()
     {
         Log::info("Sending email to {$this->recipient} with subject: {$this->subject}");
 
-        // 1. Save to your emails table first (for tracking)
-        $emailRecord = Email::create([
-            'recipient' => $this->recipient,
-            'subject'   => $this->subject,
-            'message'   => $this->message,
-            'status'    => Email::STATUS_PENDING,
-            'category'  => 'welcome', // or pass from controller if you want
-            'user_id'   => null,      // optional: set when you have user
-        ]);
+        // Capture $this properties for use inside closure
+        $recipient            = $this->recipient;
+        $subject              = $this->subject;
+        $message              = $this->message;
+        $attachmentPaths       = $this->attachmentPaths;
+        $attachmentOriginalNames = $this->attachmentOriginalNames;
 
         try {
-            // THIS IS THE KEY FIX → use Mail::html() instead of Mail::raw()
-            Mail::html($this->message, function ($mail) {
-                $mail->to($this->recipient)
-                     ->subject($this->subject)
+            Mail::html($message, function ($mail) use ($recipient, $subject, $attachmentPaths, $attachmentOriginalNames) {
+                $mail->to($recipient)
+                     ->subject($subject)
                      ->from(config('mail.from.address'), config('mail.from.name'));
+                if (!empty($attachmentPaths)) {
+                    foreach ($attachmentPaths as $i => $p) {
+                        $orig = $attachmentOriginalNames[$i] ?? basename($p);
+                        try {
+                            $mail->attach(public_path('storage/' . $p), ['as' => $orig]);
+                        } catch (\Exception $e) {
+                            Log::warning("Failed to attach file {$p} to email to {$recipient}: " . $e->getMessage());
+                        }
+                    }
+                }
             });
 
-            // Success → update status
-            $emailRecord->update([
-                'status'   => Email::STATUS_SENT,
-                'sent_at'  => now(),
-            ]);
+            // Update existing email record status (already created in controller)
+            Email::where('recipient', $recipient)
+                 ->where('status', 'pending')
+                 ->latest()
+                 ->first()
+                 ?->update(['status' => Email::STATUS_SENT, 'sent_at' => now()]);
 
-            Log::info("Email sent successfully to {$this->recipient}");
+            Log::info("Email sent successfully to {$recipient}");
 
         } catch (\Exception $e) {
-            // Failed → update status
-            $emailRecord->update([
-                'status'   => Email::STATUS_FAILED,
-                'response' => $e->getMessage(),
-            ]);
+            Email::where('recipient', $recipient)
+                 ->where('status', 'pending')
+                 ->latest()
+                 ->first()
+                 ?->update(['status' => Email::STATUS_FAILED, 'response' => $e->getMessage()]);
 
-            Log::error("Failed to send email to {$this->recipient}: " . $e->getMessage());
+            Log::error("Failed to send email to {$recipient}: " . $e->getMessage());
         }
     }
 }

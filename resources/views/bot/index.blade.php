@@ -66,6 +66,7 @@
                             <thead>
                                 <tr>
                                     <th>Batch ID</th>
+                                    <th>Type</th>
                                     <th>Sent By</th>
                                     <th>Total</th>
                                     <th>Sent</th>
@@ -79,6 +80,20 @@
                                 @foreach($batches as $batch)
                                 <tr>
                                     <td>{{ $batch->batch_id }}</td>
+                                    <td>
+                                        @php
+                                            $messageType = $batch->filters['message_type'] ?? 'announcement';
+                                        @endphp
+                                        @if($messageType === 'rating')
+                                            <span class="badge badge-warning">
+                                                <i class="fas fa-star"></i> Rating
+                                            </span>
+                                        @else
+                                            <span class="badge badge-info">
+                                                <i class="fas fa-bullhorn"></i> Announcement
+                                            </span>
+                                        @endif
+                                    </td>
                                     <td>{{ $batch->user ? $batch->user->first_name : 'N/A' }}</td>
                                     <td>{{ $batch->total_count }}</td>
                                     <td><span class="badge badge-success">{{ $batch->sent_count }}</span></td>

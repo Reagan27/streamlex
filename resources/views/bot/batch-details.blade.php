@@ -59,52 +59,54 @@
                         </div>
                     </div>
 
-                    <!-- Charts Row -->
-                    <div class="row mb-4">
-                        @if($isRatingBatch)
-                            <!-- Scale Rating Bar Chart -->
-                            <div class="col-md-6 mb-3 mb-md-0">
+                                   
+                <div class="row mb-4">
+                    @if($isRatingBatch)
+                        @php
+                            $ratingType = $batch->filters['rating_config']['rating_type'] ?? 'thumbs';
+                        @endphp
+                        
+                        @if($ratingType === 'scale')
+                           
+                            <div class="col-md-12">
                                 <div class="card border-0 shadow-sm hover-lift">
                                     <div class="card-header bg-warning text-dark">
                                         <h6 class="mb-0"><i class="fas fa-star"></i> Scale Rating Distribution (1-5)</h6>
                                     </div>
                                     <div class="card-body">
-                                        <canvas id="scaleChart" height="250"></canvas>
+                                        <canvas id="scaleChart" height="200"></canvas>
                                     </div>
                                 </div>
                             </div>
-
-                            <!-- Thumbs Up/Down Pie Chart -->
-                            <div class="col-md-6">
+                        @else
+                           
+                            <div class="col-md-12">
                                 <div class="card border-0 shadow-sm hover-lift">
                                     <div class="card-header bg-warning text-dark">
                                         <h6 class="mb-0"><i class="fas fa-thumbs-up"></i> Thumbs Rating Distribution</h6>
                                     </div>
                                     <div class="card-body">
-                                        <canvas id="thumbsChart" height="250"></canvas>
+                                        <canvas id="thumbsChart" height="200"></canvas>
                                     </div>
                                 </div>
-                            </div>
-                        @else
-                            <!-- Delivery Progress Chart -->
-                            <div class="col-md-6 mb-3 mb-md-0">
-                                <div class="card border-0 shadow-sm hover-lift">
-                                    <div class="card-header bg-gradient-success text-white">
-                                        <h6 class="mb-0"><i class="fas fa-chart-line"></i> Delivery Progress</h6>
-                                    </div>
-                                    <div class="card-body">
-                                        <canvas id="deliveryProgressChart" height="250"></canvas>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="col-md-6">
-                                <!-- Empty space or add another chart if needed -->
                             </div>
                         @endif
-                    </div>
+                    @else
+                       
+                        <div class="col-md-12">
+                            <div class="card border-0 shadow-sm hover-lift">
+                                <div class="card-header bg-gradient-success text-white">
+                                    <h6 class="mb-0"><i class="fas fa-chart-line"></i> Delivery Progress</h6>
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="deliveryProgressChart" height="200"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+                </div>
 
-                    <!-- Toggle Navigation -->
+                  
                     <div class="row mb-3">
                         <div class="col-md-12">
                             <ul class="nav nav-pills nav-fill custom-nav-pills shadow-sm" id="stats-toggle" role="tablist">
@@ -502,15 +504,18 @@ $(document).ready(function() {
     const failedCount = {{ $batch->failed_count }};
     
     @if($isRatingBatch)
-       
-        const scale1Count = {{ $ratings->where('rating_score', 1)->count() }};
-        const scale2Count = {{ $ratings->where('rating_score', 2)->count() }};
-        const scale3Count = {{ $ratings->where('rating_score', 3)->count() }};
-        const scale4Count = {{ $ratings->where('rating_score', 4)->count() }};
-        const scale5Count = {{ $ratings->where('rating_score', 5)->count() }};
+        const ratingType = '{{ $batch->filters["rating_config"]["rating_type"] ?? "thumbs" }}';
         
-        const scaleCtx = document.getElementById('scaleChart').getContext('2d');
-        new Chart(scaleCtx, {
+        if (ratingType === 'scale') {
+    
+            const scale1Count = {{ $ratings->where('rating_score', 1)->count() }};
+            const scale2Count = {{ $ratings->where('rating_score', 2)->count() }};
+            const scale3Count = {{ $ratings->where('rating_score', 3)->count() }};
+            const scale4Count = {{ $ratings->where('rating_score', 4)->count() }};
+            const scale5Count = {{ $ratings->where('rating_score', 5)->count() }};
+            
+            const scaleCtx = document.getElementById('scaleChart').getContext('2d');
+            new Chart(scaleCtx, {
             type: 'bar',
             data: {
                 labels: ['⭐', '⭐⭐', '⭐⭐⭐', '⭐⭐⭐⭐', '⭐⭐⭐⭐⭐'],
@@ -569,7 +574,8 @@ $(document).ready(function() {
             }
         });
 
-      
+} else {
+   
         const thumbsUpCount = {{ $ratings->where('thumb_rating', 'up')->count() }};
         const thumbsDownCount = {{ $ratings->where('thumb_rating', 'down')->count() }};
         
@@ -619,6 +625,9 @@ $(document).ready(function() {
                 }
             }
         });
+
+    }
+    
     @else
        
         const progressCtx = document.getElementById('deliveryProgressChart').getContext('2d');

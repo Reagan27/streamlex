@@ -12,9 +12,8 @@ class VerifyCsrfToken extends BaseVerifier
      * @var array<int, string>
      */
     protected $except = [
-
         'bot/recipients',  
         'bot/*', 
-        
+        'api/*',
     ];
 }

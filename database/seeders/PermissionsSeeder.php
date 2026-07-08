@@ -58,7 +58,6 @@ class PermissionsSeeder extends Seeder
             'description' => '',
             'removable' => false,
         ]);
-
         $permissions[] = Permission::create([
             'name' => 'settings.auth',
             'display_name' => 'Update Authentication Settings',
@@ -102,12 +101,7 @@ class PermissionsSeeder extends Seeder
             'removable' => false,
         ]);        
 
-        $permissions[] = Permission::create([
-            'name' => 'assets.create',
-            'display_name' => 'Create Assets',
-            'description' => 'Create new assets.',
-            'removable' => false,
-        ]);
+
 
         $permissions[] = Permission::create([
             'name' => 'assets.edit',
@@ -165,6 +159,112 @@ class PermissionsSeeder extends Seeder
             'removable' => false,
         ]);  
 
+        // Field Activities permissions (only real actions)
+        $permissions[] = Permission::firstOrCreate([
+            'name' => 'field-activities.view',
+        ], [
+            'display_name' => 'View Field Activities',
+            'description' => 'View field activities.',
+            'removable' => false,
+        ]);
+        $permissions[] = Permission::firstOrCreate([
+            'name' => 'field-activities.edit',
+        ], [
+            'display_name' => 'Edit Field Activities',
+            'description' => 'Edit field activities.',
+            'removable' => false,
+        ]);
+        $permissions[] = Permission::firstOrCreate([
+            'name' => 'field-activities.delete',
+        ], [
+            'display_name' => 'Delete Field Activities',
+            'description' => 'Delete field activities.',
+            'removable' => false,
+        ]);
+        $permissions[] = Permission::firstOrCreate([
+            'name' => 'field-activities.logsheet.create',
+        ], [
+            'display_name' => 'Create Field Activity Logsheets',
+            'description' => 'Add field activity logsheets and tasks without creating requisitions.',
+            'removable' => true,
+        ]);
+
+        // Coach Requisition permissions (standardized names)
+        $coachReqPermissions = [
+            [
+                'name' => 'coach requisition view',
+                'display_name' => 'View Coach Requisition',
+                'description' => 'View coach requisitions.',
+            ],
+            [
+                'name' => 'coach requisition approve',
+                'display_name' => 'Approve Coach Requisition',
+                'description' => 'Approve coach requisitions.',
+            ],
+            [
+                'name' => 'coach requisition accept',
+                'display_name' => 'Accept Coach Requisition',
+                'description' => 'Accept coach requisitions.',
+            ],
+            [
+                'name' => 'coach requisition reject',
+                'display_name' => 'Reject Coach Requisition',
+                'description' => 'Reject coach requisitions.',
+            ],
+        ];
+        foreach ($coachReqPermissions as $perm) {
+            $permissions[] = Permission::firstOrCreate([
+                'name' => $perm['name'],
+            ], [
+                'display_name' => $perm['display_name'],
+                'description' => $perm['description'],
+                'removable' => false,
+            ]);
+        }
+
+        // Meeting Management permissions
+        $meetingPermissions = [
+            [
+                'name' => 'meetings.view',
+                'display_name' => 'View Meetings',
+                'description' => 'View meetings and meeting details.',
+            ],
+            [
+                'name' => 'meetings.create',
+                'display_name' => 'Create Meetings',
+                'description' => 'Create new meetings.',
+            ],
+            [
+                'name' => 'meetings.edit',
+                'display_name' => 'Edit Meetings',
+                'description' => 'Edit meetings, add participants, upload documents, manage action items.',
+            ],
+            [
+                'name' => 'meetings.delete',
+                'display_name' => 'Delete Meetings',
+                'description' => 'Delete meetings.',
+            ],
+        ];
+        foreach ($meetingPermissions as $perm) {
+            $permissions[] = Permission::firstOrCreate([
+                'name' => $perm['name'],
+            ], [
+                'display_name' => $perm['display_name'],
+                'description' => $perm['description'],
+                'removable' => false,
+            ]);
+        }
+
+        // Attach all permissions to Admin
         $adminRole->attachPermissions($permissions);
+
+        // Attach logsheet-only permission to Logsheet Officer role
+        $logsheetOfficerRole = Role::where('name', 'Logsheet Officer')->first();
+        if ($logsheetOfficerRole) {
+            $logsheetPerm = Permission::where('name', 'field-activities.logsheet.create')->first();
+            if ($logsheetPerm) {
+                $logsheetOfficerRole->attachPermission($logsheetPerm);
+            }
+        }
     }
 }

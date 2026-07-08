@@ -100,8 +100,8 @@
                 <div class="etims-section h-100">
                     <div class="etims-title">ETIMS Invoice Generation Details</div>
                     <div class="etims-info">Please use the following information:</div>
-                    <div class="etims-info"><strong>Selistar PIN:</strong> P052364620V</div>
-                    <div class="etims-info"><strong>Selistar Phone No:</strong> 0748778304</div>
+                    <div class="etims-info"><strong>CPHRM PIN:</strong> P052364620V</div>
+                    <div class="etims-info"><strong>CPHRM Phone No:</strong> 0748778304</div>
                     <div class="etims-info"><strong>Description:</strong> Data Collection Professional fee</div>
                 </div>
             </div>
@@ -200,7 +200,7 @@
                       
                         <td class="text-center">
                             <span class="productivity-badge">
-                                {{ number_format($payment->productivity, 1) }}
+                                {{ isset($payment->calculated_productivity) ? number_format($payment->calculated_productivity, 2) : number_format($payment->productivity, 2) }}
                             </span>
                         </td>
                         <td class="amount-column">
@@ -232,7 +232,19 @@
                             @if($payment->invoice_type === 'aggregated')
                                 <small class="text-muted">Combined invoice above</small>
                             @else
-                                @if($payment->invoice_file)
+                                {{-- Show FAM Invoice if available --}}
+                                @if(isset($payment->fam_invoice) && $payment->fam_invoice)
+                                    <div class="btn-group-vertical">
+                                        <a href="{{ $payment->getFieldActivityInvoiceUrl() }}"
+                                           target="_blank"
+                                           rel="noopener noreferrer"
+                                           class="btn btn-sm btn-success"
+                                           title="Invoice from Field Activity">
+                                            <i class="fas fa-file-invoice"></i> {{ $payment->fam_invoice->file_name ?: 'View FAM Invoice' }}
+                                        </a>
+                                    </div>
+                                {{-- Fall back to payment invoice --}}
+                                @elseif($payment->invoice_file)
                                     <div class="btn-group-vertical">
                                         <a href="{{ asset('storage/' . $payment->invoice_file) }}" 
                                            target="_blank"
@@ -272,9 +284,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Upload Combined Invoice</h5>
-                <button type="button" class="close" data-dismiss="modal">
-                    <span>&times;</span>
-                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="aggregatedInvoiceForm" action="{{ route('payments.upload-combined-invoice') }}" 
                   method="POST" enctype="multipart/form-data">
@@ -323,9 +333,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Upload Individual Invoice</h5>
-                <button type="button" class="close" data-dismiss="modal">
-                    <span>&times;</span>
-                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="individualInvoiceForm">
                 @csrf
@@ -349,7 +357,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-upload"></i> Upload Invoice
                     </button>

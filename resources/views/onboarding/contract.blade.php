@@ -56,7 +56,7 @@
             <div class="form-group">
                <p>This Contract is entered into on <span>{{ \Carbon\Carbon::parse($contract->start_date)->format('F j, Y')}}</span>,
                 for a total period of <span>{{ $contract->number_of_days }} days</span>, with an address of
-                SELISTAR , and with an address of <span>{{ Auth::user()->name }}</span> collectively referred to as the "Parties".</p>
+                CPHRM , and with an address of <span>{{ Auth::user()->name }}</span> collectively referred to as the "Parties".</p>
                 <div class="contract-description-container">
                     <div id="contract-description" class="contract-description">
                         {!! $contract->description !!}
@@ -92,8 +92,14 @@
         </div>
     </form>
     @else
-        <div class="alert alert-warning">
-            No published contract is available at this time.
+        <div class="alert alert-danger">
+            <strong>We're sorry, but there is no contract available for your role at this time.</strong>
+            <p>Please ensure:</p>
+            <ul>
+                <li>You are assigned to an active project</li>
+                <li>Your role and county match a published contract</li>
+                <li>Contact the administrator for more information</li>
+            </ul>
         </div>
     @endif
 @endsection

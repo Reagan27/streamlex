@@ -23,7 +23,7 @@ function setupEnvironment()
     ini_set('display_errors', 1);
 
     if (extension_loaded('uopz') && !(ini_get('uopz.disable') || ini_get('uopz.exit'))) {
-        // uopz works at opcode level and disables exit calls
+       
         if (function_exists('uopz_allow_exit')) {
             @uopz_allow_exit(true);
         } else {
@@ -47,7 +47,7 @@ function setupEnvironment()
  */
 function process($argv)
 {
-    // Determine ANSI output from --ansi and --no-ansi flags
+   
     setUseAnsi($argv);
 
     $help = in_array('--help', $argv) || in_array('-h', $argv);
@@ -84,7 +84,7 @@ function process($argv)
     $ok = checkPlatform($warnings, $quiet, $disableTls, true);
 
     if ($check) {
-        // Only show warnings if we haven't output any errors
+        
         if ($ok) {
             showWarnings($warnings);
             showSecurityWarning($disableTls);
@@ -103,12 +103,12 @@ function process($argv)
             showSecurityWarning($disableTls);
             exit(0);
         }
-    }
+    } 
 
     exit(1);
 }
 
-/**
+/*
  * Displays the help
  */
 function displayHelp()
@@ -263,14 +263,14 @@ function checkPlatform(&$warnings, $quiet, $disableTls, $install)
 {
     getPlatformIssues($errors, $warnings, $install);
 
-    // Make openssl warning an error if tls has not been specifically disabled
+   
     if (isset($warnings['openssl']) && !$disableTls) {
         $errors['openssl'] = $warnings['openssl'];
         unset($warnings['openssl']);
     }
 
     if (!empty($errors)) {
-        // Composer-Setup.exe uses "Some settings" to flag platform errors
+       
         out('Some settings on your machine make Composer unable to work properly.', 'error');
         out('Make sure that you fix the issues listed below and run this script again:', 'error');
         outputIssues($errors);

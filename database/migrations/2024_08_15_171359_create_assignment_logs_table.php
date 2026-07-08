@@ -11,8 +11,8 @@ class CreateAssignmentLogsTable extends Migration
         if (!Schema::hasTable('assignment_logs')) {
             Schema::create('assignment_logs', function (Blueprint $table) {
                 $table->id();
-                $table->unsignedBigInteger('assigned_by');
-                $table->unsignedBigInteger('assigned_to');
+                $table->unsignedInteger('assigned_by');
+                $table->unsignedInteger('assigned_to');
                 $table->unsignedBigInteger('asset_id');
                 $table->integer('quantity_assigned');
                 $table->timestamps();
@@ -25,11 +25,11 @@ class CreateAssignmentLogsTable extends Migration
         } else {
             Schema::table('assignment_logs', function (Blueprint $table) {
                 if (!Schema::hasColumn('assignment_logs', 'assigned_by')) {
-                    $table->unsignedBigInteger('assigned_by');
+                    $table->unsignedInteger('assigned_by');
                     $table->foreign('assigned_by')->references('id')->on('users')->onDelete('cascade');
                 }
                 if (!Schema::hasColumn('assignment_logs', 'assigned_to')) {
-                    $table->unsignedBigInteger('assigned_to');
+                    $table->unsignedInteger('assigned_to');
                     $table->foreign('assigned_to')->references('id')->on('users')->onDelete('cascade');
                 }
                 if (!Schema::hasColumn('assignment_logs', 'asset_id')) {

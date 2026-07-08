@@ -22,22 +22,22 @@ class DurableAssetsWidget extends Widget
     {
         $this->roleHierarchyService = $roleHierarchyService;
     }
-
     public function render(): View
-    {
-        $currentUser = auth()->user();
-        
-        if ($currentUser->isAdmin() || $currentUser->hasRole('Manager')) {
-            $durableAssets = $this->getAdminManagerView();
-        } elseif ($currentUser->role->name === 'Regional_Coordinator') {
-            $durableAssets = $this->getRegionalCoordinatorView($currentUser);
-        } elseif ($currentUser->role->name === 'County_Coordinator') {
-            $durableAssets = $this->getCountyCoordinatorView($currentUser);
-        } elseif ($currentUser->role->name === 'Supervisor') {
-            $durableAssets = $this->getSupervisorView($currentUser);
-        } else {
-            $durableAssets = $this->getUserInventoryView($currentUser);
-        }
+{
+    $currentUser = auth()->user();
+    $activeProjectId = session('active_project_id') ?? $currentUser->getActiveProjectId();
+    
+    if ($currentUser->isAdmin() || $currentUser->hasRole('Manager')) {
+        $durableAssets = $this->getAdminManagerView($activeProjectId);
+    } elseif ($currentUser->role->name === 'Regional_Coordinator') {
+        $durableAssets = $this->getRegionalCoordinatorView($currentUser, $activeProjectId);
+    } elseif ($currentUser->role->name === 'County_Coordinator') {
+        $durableAssets = $this->getCountyCoordinatorView($currentUser, $activeProjectId);
+    } elseif ($currentUser->role->name === 'Supervisor') {
+        $durableAssets = $this->getSupervisorView($currentUser, $activeProjectId);
+    } else {
+        $durableAssets = $this->getUserInventoryView($currentUser, $activeProjectId);
+    }
 
         return view('plugins.dashboard.widgets.durable-assets', [
             'durableAssets' => $durableAssets,

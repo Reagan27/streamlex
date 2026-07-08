@@ -11,7 +11,7 @@ class CreateBotAnnouncementViewsTable extends Migration
         Schema::create('bot_announcement_views', function (Blueprint $table) {
             $table->id();
             $table->string('message_id')->index();
-            $table->unsignedBigInteger('user_id')->nullable();
+            $table->unsignedInteger('user_id')->nullable();
             $table->string('phone_number');
             $table->string('session_id')->nullable();
             $table->timestamp('viewed_at');

@@ -47,7 +47,7 @@
     <div role="tabpanel" class="tab-pane active" id="auth">
         <div class="row">
             <div class="col-md-6">
-                @include('settings.partials.auth')
+                @include('settings.partials.auth', ['settings' => $settings])
                 @include('settings.partials.two-factor')
             </div>
             <div class="col-md-6">

@@ -19,6 +19,7 @@ class Email extends Model
         'email_id',
         'category',
         'user_id',
+        'attachment',
     ];
 
     const STATUS_PENDING = 'pending';

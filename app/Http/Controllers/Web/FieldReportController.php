@@ -18,12 +18,15 @@ class FieldReportController extends Controller
 
     public function index(Request $request)
     {
+        $currentUser = auth()->user();
         $query = FieldReport::with(['creator', 'creator.role', 'county'])
             ->withCount('attachments');
 
-        $currentUser = auth()->user();
 
-        // Apply access filters based on user role
+        $currentUser = auth()->user();
+        $activeProjectId = session('active_project_id') ?? $currentUser->getActiveProjectId();
+
+       
         if (!$currentUser->isAdmin()) {
             $userCounties = $currentUser->counties->pluck('id')->toArray();
             
@@ -36,17 +39,26 @@ class FieldReportController extends Controller
             }
         }
 
-        // Apply search filter
+       
         if ($request->filled('search')) {
             $query->where('title', 'like', "%{$request->search}%");
         }
 
-        // Apply status filter
+
+
+
+        if ($activeProjectId) {
+            $query->whereHas('creator.projects', function ($q) use ($activeProjectId) {
+                $q->where('projects.id', $activeProjectId);
+            });
+        }   
+
+       
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
-        // Apply county filter if provided
+        
         if ($request->filled('county')) {
             $query->where('county_id', $request->county);
         }
@@ -80,7 +92,7 @@ class FieldReportController extends Controller
             'content' => 'nullable|string',
             'summary' => 'nullable|string',
             'recommendations' => 'nullable|string',
-            'attachments.*' => 'nullable|file|max:2048', // 2MB limit
+            'attachments.*' => 'nullable|file|max:2048', 
             'status' => 'required|in:draft,submitted'
         ]);
 
@@ -130,12 +142,12 @@ class FieldReportController extends Controller
 
     public function edit(FieldReport $report)
     {
-        // Check if report is approved
+       
         if ($report->status === 'approved') {
             return back()->with('error', 'Approved reports cannot be edited.');
         }
     
-        // Get counties based on user role
+       
         $user = auth()->user();
         
         if ($user->isAdmin()) {
@@ -143,13 +155,13 @@ class FieldReportController extends Controller
         } elseif ($user->hasRole('Regional_Coordinator')) {
             $counties = $user->counties;
         } else {
-            // For County Coordinators and other roles, only show their assigned county
+          
             $counties = County::where('id', $user->county_id)->get();
         }
     
-        // For regular users, they should only be able to select their assigned county
+        
         if (!$user->isAdmin() && !$user->hasRole('Regional_Coordinator')) {
-            // If the report's county doesn't match user's county and user isn't admin/regional coordinator
+           
             if ($report->county_id !== $user->county_id) {
                 return back()->with('error', 'You can only edit reports for your assigned county.');
             }
@@ -166,23 +178,23 @@ class FieldReportController extends Controller
 
     $user = auth()->user();
 
-    // Validate basic fields
+   
     $validatedData = $request->validate([
         'title' => 'required|string|max:255',
         'content' => 'nullable|string',
         'summary' => 'nullable|string',
         'recommendations' => 'nullable|string',
-        'attachments.*' => 'nullable|file|max:2048', // 2MB limit
+        'attachments.*' => 'nullable|file|max:2048', 
         'status' => 'required|in:draft,submitted'
     ]);
 
-    // Handle county_id validation
+    
     if ($user->isAdmin() || $user->hasRole('Regional_Coordinator')) {
         $validatedData['county_id'] = $request->validate([
             'county_id' => 'required|exists:counties,id'
         ])['county_id'];
     } else {
-        // For other users, force their assigned county
+       
         $validatedData['county_id'] = $user->county_id;
     }
 
@@ -226,7 +238,7 @@ class FieldReportController extends Controller
         try {
             DB::beginTransaction();
 
-            // Delete attachments from storage
+          
             foreach ($report->attachments as $attachment) {
                 Storage::disk('public')->delete($attachment->file_path);
             }
@@ -248,12 +260,12 @@ class FieldReportController extends Controller
 
     public function approve(FieldReport $report)
     {
-        // Check if report can be approved
+       
         if (!$report->can_approve) {
             return back()->with('error', 'You do not have permission to approve this report.');
         }
     
-        // Check if report is in correct status
+      
         if ($report->status !== 'submitted') {
             return back()->with('error', 'Only submitted reports can be approved.');
         }

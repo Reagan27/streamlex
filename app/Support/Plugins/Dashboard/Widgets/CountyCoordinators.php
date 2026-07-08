@@ -38,7 +38,14 @@ class CountyCoordinators extends Widget
             //           ->where('admin_contracts.status', 'published')
             //           ->where(DB::raw('DATE_ADD(admin_contracts.start_date, INTERVAL admin_contracts.number_of_days DAY)'), '>', Carbon::now());
             // });
+        $currentUser = Auth::user();
+$activeProjectId = session('active_project_id') ?? $currentUser->getActiveProjectId();
 
+if ($activeProjectId) {
+    $query->whereHas('projects', function ($q) use ($activeProjectId) {
+        $q->where('projects.id', $activeProjectId);
+    });
+}
         if ($currentUser->hasRole('Regional_Coordinator')) {
             $assignedCountyIds = $currentUser->counties()->pluck('counties.id');
             $query->whereIn('county_id', $assignedCountyIds);

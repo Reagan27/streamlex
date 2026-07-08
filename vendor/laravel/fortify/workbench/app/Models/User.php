@@ -34,5 +34,6 @@ class User extends Authenticatable
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'nda_signed_at' => 'datetime',
     ];
 }

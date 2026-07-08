@@ -15,6 +15,7 @@ use Illuminate\Validation\Rule;
 use Vanguard\UserDocument;
 use Illuminate\Support\Facades\Gate;
 use Vanguard\Bank;
+use Vanguard\Models\UserEducationCertificate;
 
 class ProfileController extends Controller
 {
@@ -28,25 +29,30 @@ class ProfileController extends Controller
         $this->middleware('auth');
     }
 
-    public function show(): View
+    public function show(Request $request): View
     {
-        $user = auth()->user();
-        $contractSignature = $user->contractSignature;
-        $userDocument = UserDocument::where('user_id', $user->id)->first();
-        $bankDetails = $user->bankDetails;
-        
+        $authUser = auth()->user();
+        $profileUser = $authUser;
+        if ($request->filled('user_id') && $authUser->hasRole(['Admin', 'Manager', 'Finance'])) {
+            $profileUser = User::findOrFail($request->user_id);
+        }
+        $contractSignature = $profileUser->contractSignature;
+        $userDocument = UserDocument::where('user_id', $profileUser->id)->first();
+        $bankDetails = $profileUser->bankDetails;
+        $certificates = UserEducationCertificate::where('user_id', $profileUser->id)->get();
+
         // Only load banks if user has permission to manage sensitive info
         $banks = null;
-        if ($user->hasPermission('sensitive.information.manage')) {
+        if ($authUser->hasPermission('sensitive.information.manage')) {
             $banks = Bank::orderBy('name')->get();
         }
 
         $counties = $this->counties->lists();
-        $subcounties = $user->county_id ? $this->subcounties->lists($user->county_id) : collect();
-        $wards = $user->subcounty_id ? $this->wards->lists($user->subcounty_id) : collect();
+        $subcounties = $profileUser->county_id ? $this->subcounties->lists($profileUser->county_id) : collect();
+        $wards = $profileUser->subcounty_id ? $this->wards->lists($profileUser->subcounty_id) : collect();
 
         return view('user.profile', [
-            'user' => $user,
+            'profileUser' => $profileUser,
             'contractSignature' => $contractSignature,
             'userDocument' => $userDocument,
             'bankDetails' => $bankDetails,
@@ -54,8 +60,9 @@ class ProfileController extends Controller
             'counties' => [0 => __('Select a County')] + $counties->toArray(),
             'subcounties' => $subcounties,
             'wards' => $wards,
-            'canManageSensitiveInfo' => $user->hasPermission('sensitive.information.manage'),
-            'canViewSensitiveInfo' => $user->hasPermission(['sensitive.information.view', 'sensitive.information.manage'], false)
+            'canManageSensitiveInfo' => $authUser->hasPermission('sensitive.information.manage'),
+            'canViewSensitiveInfo' => $authUser->hasPermission(['sensitive.information.view', 'sensitive.information.manage'], false),
+            'certificates' => $certificates,
         ]);
     }
 }

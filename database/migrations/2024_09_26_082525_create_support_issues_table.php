@@ -15,8 +15,8 @@ class CreateSupportIssuesTable extends Migration
     {
         Schema::create('support_issues', function (Blueprint $table) {
             $table->id();
-            $table->Integer('user_id');
-            $table->Integer('category_id');
+            $table->unsignedInteger('user_id');
+            $table->unsignedBigInteger('category_id');
             $table->string('priority')->default('Low');
             $table->string('subject');
             $table->text('content');
@@ -25,14 +25,7 @@ class CreateSupportIssuesTable extends Migration
             $table->timestamps();
 
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
-
             $table->foreign('category_id')->references('id')->on('issues_categories')->onDelete('cascade');
-        });
-
-        Schema::create('issues_categories', function (Blueprint $table) {
-            $table->id();
-            $table->string('name')->unique();
-            $table->timestamps();
         });
     }
 
@@ -44,6 +37,5 @@ class CreateSupportIssuesTable extends Migration
     public function down()
     {
         Schema::dropIfExists('support_issues');
-        Schema::dropIfExists('issues_categories');
     }
 }

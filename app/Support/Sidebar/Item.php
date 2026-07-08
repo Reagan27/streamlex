@@ -167,21 +167,24 @@ class Item
         return $this;
     }
 
-    /**
-     * Check if the specified user can view the item.
-     */
     public function authorize(User $user): bool
-    {
-        if ($this->permissions instanceof Closure) {
-            return call_user_func($this->permissions, $user);
-        }
+{
+    if ($this->permissions instanceof Closure) {
+        return call_user_func($this->permissions, $user);
+    }
 
-        foreach ((array) $this->permissions as $permission) {
-            if (! $user->hasPermission($permission)) {
-                return false;
-            }
-        }
-
+    // Handle null/empty permissions - allow access
+    if (empty($this->permissions)) {
         return true;
     }
+
+    foreach ((array) $this->permissions as $permission) {
+        if (! $user->hasPermission($permission)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 }

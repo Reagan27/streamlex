@@ -48,7 +48,7 @@ class UserPresenterTest extends TestCase
         $this->assertEquals('http://somewebsite.com/avatar.png', $this->user->present()->avatar);
 
         $this->user->avatar = 'foo.png';
-        $this->assertEquals(url('upload/users/foo.png'), $this->user->present()->avatar);
+        $this->assertEquals(url('storage/upload/users/foo.png'), $this->user->present()->avatar);
     }
 
     /** @test */

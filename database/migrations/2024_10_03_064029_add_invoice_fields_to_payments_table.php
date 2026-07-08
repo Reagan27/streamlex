@@ -11,10 +11,7 @@ return new class extends Migration
      */
     public function up()
     {
-        Schema::table('payments', function (Blueprint $table) {
-            $table->string('invoice_number')->nullable();
-            $table->string('invoice_file')->nullable(); // Assuming file path storage
-        });
+        // Columns already exist in payments table, nothing to add here.
     }
 
     /**
@@ -22,8 +19,6 @@ return new class extends Migration
      */
     public function down()
     {
-        Schema::table('payments', function (Blueprint $table) {
-            $table->dropColumn(['invoice_number', 'invoice_file']);
-        });
+        // Columns already exist in payments table, nothing to drop here.
     }
 };

@@ -4,8 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class AddPhoneVerificationColumnsToEventAttendances extends Migration
-{
+return new class extends Migration {
     public function up()
     {
         Schema::table('event_attendances', function (Blueprint $table) {
@@ -30,4 +29,4 @@ class AddPhoneVerificationColumnsToEventAttendances extends Migration
             $table->dropColumn(['phone_verified', 'phone_verification_date', 'title', 'designation']);
         });
     }
-}
+};

@@ -13,13 +13,13 @@ return new class extends Migration
     {
         Schema::create('map_users', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('user_id');
-            $table->unsignedBigInteger('role_id');
+            $table->unsignedInteger('user_id');
+            $table->unsignedInteger('role_id');
             $table->unsignedBigInteger('county_id');
             $table->decimal('latitude', 10, 7);
             $table->decimal('longitude', 10, 7);
             $table->timestamps();
-    
+
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
             $table->foreign('role_id')->references('id')->on('roles')->onDelete('cascade');
             $table->foreign('county_id')->references('id')->on('counties')->onDelete('cascade');

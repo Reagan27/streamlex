@@ -1,3 +1,29 @@
+    @if(session('success'))
+        <!-- Modal -->
+        <div class="modal fade" id="approvalModal" tabindex="-1" role="dialog" aria-labelledby="approvalModalLabel" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="approvalModalLabel">Onboarding Complete</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        {{ session('success') }}
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" data-dismiss="modal">OK</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script>
+            window.onload = function() {
+                $('#approvalModal').modal('show');
+            };
+        </script>
+    @endif
 @extends('layouts.onboarding')
 
 @section('content')
@@ -41,8 +67,8 @@
                 <h4 class="mb-0">Documents</h4>
             </div>
             <div class="card-body">
-                <p><strong>ID Number:</strong> {{ $user->documents->id_number }}</p>
-                <p><strong>KRA PIN:</strong> {{ $user->documents->kra_pin }}</p>
+                <p><strong>ID Number:</strong> {{ optional($user->documents->first())->id_number }}</p>
+                <p><strong>KRA PIN:</strong> {{ optional($user->documents->first())->kra_pin }}</p>
             </div>
         </div>
 

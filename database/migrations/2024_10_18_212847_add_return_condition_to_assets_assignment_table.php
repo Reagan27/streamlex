@@ -11,14 +11,14 @@ return new class extends Migration
      */
     public function up()
     {
-        Schema::table('assets_assignment', function (Blueprint $table) {
+        Schema::table('asset_assignments', function (Blueprint $table) {
             $table->text('return_condition')->nullable();
         });
     }
     
     public function down()
     {
-        Schema::table('assets_assignment', function (Blueprint $table) {
+        Schema::table('asset_assignments', function (Blueprint $table) {
             $table->dropColumn('return_condition');
         });
     }

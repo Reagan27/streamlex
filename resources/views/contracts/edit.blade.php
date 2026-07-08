@@ -87,30 +87,28 @@
 @include('partials.messages')
 <div class="card">
     <div class="card-body">
-    <form action="{{ route('contracts.update', $contract) }}" method="POST" enctype="multipart/form-data" id="contract-form">
-        @csrf
-        @method('PUT')
-        
-        <div class="row">
-            <div class="col-md-6">
-                <div class="form-group">
-                    <label for="title">Title</label>
-                    <input type="text" class="form-control" id="title" name="title" value="{{ old('title', $contract->title) }}" required>
-                </div>
-                <div class="form-group">
-                    <label for="start_date">Start Date</label>
-                    <input type="date" class="form-control" id="start_date" name="start_date" 
-                           value="{{ old('start_date', $contract->start_date ? $contract->start_date->format('Y-m-d') : '') }}" required>
-                </div>
-                <div class="form-group">
-                    <label for="number_of_days">Number of Days</label>
-                    <input type="number" class="form-control" id="number_of_days" name="number_of_days" value="{{ old('number_of_days', $contract->number_of_days) }}" required>
+        <form action="{{ route('contracts.update', $contract) }}" method="POST" enctype="multipart/form-data" id="contract-form">
+            @csrf
+            @method('PUT')
+
+            <!-- Contract Type Selection -->
+            <div class="form-group">
+                <label>Contract Type</label>
+                <div>
+                    <label class="mr-3">
+                        <input type="radio" name="contract_category" value="group" {{ $contract->contract_category === 'group' ? 'checked' : '' }}> Group
+                    </label>
+                    <label>
+                        <input type="radio" name="contract_category" value="individual" {{ $contract->contract_category === 'individual' ? 'checked' : '' }}> Individual
+                    </label>
                 </div>
             </div>
-            <div class="col-md-6">
+
+            <!-- Group-specific fields -->
+            <div class="group-only" style="display: none;">
                 <div class="form-group">
                     <label for="role_id">Role</label>
-                    <select class="form-control" id="role_id" name="role_id" required>
+                    <select class="form-control" id="role_id" name="role_id">
                         @foreach($roles as $role)
                             <option value="{{ $role->id }}" {{ $contract->role_id == $role->id ? 'selected' : '' }}>{{ $role->display_name }}</option>
                         @endforeach
@@ -118,69 +116,129 @@
                 </div>
                 <div class="form-group">
                     <label for="counties">Counties</label>
-                    <select class="form-control" id="counties" name="counties[]" multiple required>
+                    <select class="form-control" id="counties" name="counties[]" multiple="multiple">
                         @foreach($counties as $county)
-                            <option value="{{ $county->id }}" {{ $contract->counties->contains($county->id) ? 'selected' : '' }}>
-                                {{ $county->name }}
-                            </option>
+                            <option value="{{ $county->id }}" {{ in_array($county->id, $contract->counties->pluck('id')->toArray()) ? 'selected' : '' }}>{{ $county->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+
+            <!-- Individual-specific fields -->
+            <div class="individual-only" style="display: none;">
+                <div class="form-group">
+                    <label for="user_id">User</label>
+                    <select class="form-control" id="user_id" name="user_id">
+                        @foreach($users as $user)
+                            <option value="{{ $user->id }}" {{ $contract->user_id == $user->id ? 'selected' : '' }}>{{ $user->name }}</option>
                         @endforeach
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="status">Status</label>
-                    <select class="form-control" id="status" name="status" required>
-                        <option value="draft" {{ old('status', $contract->status) == 'draft' ? 'selected' : '' }}>Draft</option>
-                        <option value="published" {{ old('status', $contract->status) == 'published' ? 'selected' : '' }}>Published</option>
-                        <option value="dropped" {{ old('status', $contract->status) == 'dropped' ? 'selected' : '' }}>Dropped</option>
+                    <label for="engagement_type">Engagement Type</label>
+                    <select class="form-control" id="engagement_type" name="engagement_type">
+                        <option value="consultant" {{ $contract->engagement_type === 'consultant' ? 'selected' : '' }}>Consultant</option>
+                        <option value="employee" {{ $contract->engagement_type === 'employee' ? 'selected' : '' }}>Employee</option>
+                        <option value="parttime" {{ $contract->engagement_type === 'parttime' ? 'selected' : '' }}>Part-time</option>
                     </select>
                 </div>
             </div>
-        </div>
 
-        <div class="form-group">
-            <label class="d-block">Contract Activation Status</label>
-            <div class="d-flex align-items-center mb-2">
-                <label class="toggle-switch mr-3 mb-0">
-                    <input type="checkbox" id="active_for_onboarding" name="active_for_onboarding" value="1"
-                           {{ old('active_for_onboarding', $contract->active_for_onboarding) ? 'checked' : '' }}>
-                    <span class="slider"></span>
-                </label>
-                <span class="status-label">{{ $contract->active_for_onboarding ? 'Active for Onboarding' : 'Inactive for Onboarding' }}</span>
+            <!-- Common fields for both types -->
+            <div class="form-group row">
+                <div class="col-md-6">
+                    <label for="duration_type">Duration Type</label>
+                    <select class="form-control" id="duration_type" name="duration_type">
+                        <option value="">Select duration</option>
+                        @foreach($durationTypes as $type)
+                            <option value="{{ $type }}" {{ $contract->duration_type === $type ? 'selected' : '' }}>{{ ucfirst($type) }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="duration_amount">Duration Time</label>
+                    <input type="number" class="form-control" id="duration_amount" name="duration_amount" min="1"
+                           value="{{ old('duration_amount', $contract->number_of_days) }}">
+                    <small class="form-text text-muted">Specify the duration value based on the selected type (years, months, or days).</small>
+                </div>
             </div>
-            
-            <div class="activation-warning">
-                <h6 class="font-weight-bold text-danger">Warning: Deactivating Contract</h6>
-                <p class="mb-2">Deactivating this contract will:</p>
-                <ul class="mb-0">
-                    <li>Prevent new users from using this contract during onboarding</li>
-                    <li>Mark existing contracts as inactive for all current users</li>
-                    <li>Require manual reactivation to make it available again</li>
-                </ul>
-            </div>
-        </div>
 
-        <div class="form-group">
-            <label for="description">Description</label>
-            <textarea class="form-control" id="description" name="description" required>{{ old('description', $contract->description) }}</textarea>
-        </div>
-        
-        <div class="authority-signature-section">
+            <div class="form-group">
+                <label for="project_id">Project</label>
+                <select class="form-control" id="project_id" name="project_id">
+                    <option value="">Select a Project</option>
+                    @foreach($projects as $project)
+                        <option value="{{ $project->id }}" {{ $contract->project_id == $project->id ? 'selected' : '' }}>
+                            {{ $project->name }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="status">Status</label>
+                <select class="form-control" id="status" name="status" required>
+                    <option value="draft" {{ old('status', $contract->status) == 'draft' ? 'selected' : '' }}>Draft</option>
+                    <option value="published" {{ old('status', $contract->status) == 'published' ? 'selected' : '' }}>Published</option>
+                    <option value="dropped" {{ old('status', $contract->status) == 'dropped' ? 'selected' : '' }}>Dropped</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="d-block">Contract Activation Status</label>
+                <div class="d-flex align-items-center mb-2">
+                    <label class="toggle-switch mr-3 mb-0">
+                        <input type="checkbox" id="active_for_onboarding" name="active_for_onboarding" value="1"
+                               {{ old('active_for_onboarding', $contract->active_for_onboarding) ? 'checked' : '' }}>
+                        <span class="slider"></span>
+                    </label>
+                    <span class="status-label">{{ $contract->active_for_onboarding ? 'Active for Onboarding' : 'Inactive for Onboarding' }}</span>
+                </div>
+                <div class="activation-warning">
+                    <h6 class="font-weight-bold text-danger">Warning: Deactivating Contract</h6>
+                    <p class="mb-2">Deactivating this contract will:</p>
+                    <ul class="mb-0">
+                        <li>Prevent new users from using this contract during onboarding</li>
+                        <li>Mark existing contracts as inactive for all current users</li>
+                        <li>Require manual reactivation to make it available again</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="start_date">Start Date</label>
+                <input type="date" class="form-control" id="start_date" name="start_date"
+                       value="{{ old('start_date', $contract->start_date ? $contract->start_date->format('Y-m-d') : '') }}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="end_date">End Date</label>
+                <input type="date" class="form-control" id="end_date" name="end_date"
+                       value="{{ old('end_date', $contract->end_date ? $contract->end_date->format('Y-m-d') : '') }}">
+            </div>
+
+            <div class="form-group">
+                <label for="description">Description</label>
+                <textarea class="form-control" id="description" name="description" required>{{ old('description', $contract->description) }}</textarea>
+            </div>
+
+            <div class="authority-signature-section">
                 <h4>Authority Details</h4>
                 <div class="authority-fields">
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label for="authority_name">Authority Name</label>
-                                <input type="text" class="form-control" id="authority_name" 
-                                       name="authority_name" 
+                                <input type="text" class="form-control" id="authority_name"
+                                       name="authority_name"
                                        value="{{ old('authority_name', $contract->authority_name) }}" required>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label for="authority_designation">Authority Designation</label>
-                                <input type="text" class="form-control" id="authority_designation" 
-                                       name="authority_designation" 
+                                <input type="text" class="form-control" id="authority_designation"
+                                       name="authority_designation"
                                        value="{{ old('authority_designation', $contract->authority_designation) }}" required>
                             </div>
                         </div>
@@ -192,8 +250,8 @@
                     <div id="signature-pad" class="signature-pad">
                         <canvas></canvas>
                     </div>
-                    <input type="hidden" name="authority_signature" id="signature-data" 
-                           value="{{ old('authority_signature', $contract->authority_signature) }}">
+                    <input type="hidden" name="authority_signature" id="signature-data"
+                           value="{{ old('authority_signature', $signature->signature ?? $contract->authority_signature) }}">
                     <div class="mt-2">
                         <button type="button" class="btn btn-secondary btn-sm" id="clear-signature">Clear Signature</button>
                     </div>
@@ -202,7 +260,7 @@
 
             <div class="form-group mt-4">
                 <label for="change_reason">Reason for Change</label>
-                <textarea class="form-control" id="change_reason" name="change_reason" required 
+                <textarea class="form-control" id="change_reason" name="change_reason" required
                           placeholder="Please provide a reason for updating this contract"></textarea>
             </div>
 
@@ -211,9 +269,8 @@
                     <button type="submit" class="btn btn-primary" id="submit-contract">Update Contract</button>
                 </div>
             </div>
-        
-       
-    </form>
+
+        </form>
     </div>
 </div>
 @endsection
@@ -225,6 +282,17 @@
     <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-bs4.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+
+            // Contract type toggle
+            const contractTypeRadios = document.querySelectorAll('input[name="contract_category"]');
+            const toggleFields = () => {
+                const selectedType = document.querySelector('input[name="contract_category"]:checked').value;
+                document.querySelectorAll('.group-only').forEach(el => el.style.display = selectedType === 'group' ? 'block' : 'none');
+                document.querySelectorAll('.individual-only').forEach(el => el.style.display = selectedType === 'individual' ? 'block' : 'none');
+            };
+            toggleFields(); // run on page load to show correct fields
+            contractTypeRadios.forEach(radio => radio.addEventListener('change', toggleFields));
+
             // Initialize Select2
             $('#counties').select2({
                 placeholder: 'Select counties',
@@ -244,7 +312,7 @@
                     ['view', ['fullscreen', 'codeview', 'help']]
                 ]
             });
-            
+
             // Initialize SignaturePad
             var canvas = document.querySelector("#signature-pad canvas");
             var signaturePad = new SignaturePad(canvas, {
@@ -270,7 +338,6 @@
 
             // Form submission handling
             contractForm.addEventListener('submit', function(e) {
-                // If deactivating the contract
                 if (!activationToggle.checked && {{ $contract->active_for_onboarding ? 'true' : 'false' }}) {
                     if (!confirm('Are you sure you want to deactivate this contract? This will affect all users currently using this contract.')) {
                         e.preventDefault();
@@ -278,20 +345,18 @@
                     }
                 }
 
-                // Signature validation
                 if (signaturePad.isEmpty() && !document.getElementById('signature-data').value) {
                     e.preventDefault();
                     alert('Please provide an authority signature');
                     return false;
                 }
 
-                // Update signature data if changed
                 if (!signaturePad.isEmpty()) {
                     document.getElementById('signature-data').value = signaturePad.toDataURL();
                 }
             });
 
-            // Signature pad functions
+            // Signature pad resize
             function resizeCanvas() {
                 var ratio = Math.max(window.devicePixelRatio || 1, 1);
                 canvas.width = canvas.offsetWidth * ratio;
@@ -313,6 +378,7 @@
                 signaturePad.clear();
                 document.getElementById('signature-data').value = '';
             });
+
         });
     </script>
 @endsection

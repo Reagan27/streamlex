@@ -7,12 +7,26 @@ use Vanguard\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Vanguard\UserContractSignature;
+use Illuminate\Http\Request;
 
 class UserContractController extends Controller
 {
     public function __construct()
     {
         $this->middleware('auth');
+    }
+
+    public function index()
+    {
+        $user = Auth::user();
+        $contractSignature = $user->contractSignature;
+        // Add debug information
+        $debug = [
+            'user_id' => $user->id,
+            'has_contract_signature' => $contractSignature ? 'Yes' : 'No',
+            'contract_status' => $contractSignature ? $contractSignature->status : 'N/A',
+        ];
+        return view('contracts.user_contract', compact('contractSignature', 'debug'));
     }
 
     public function view()
@@ -51,44 +65,14 @@ class UserContractController extends Controller
         return response()->download($contractPath, "contract_{$user->id}.pdf");
     }
 
-
-    public function index()
-    {
-        $user = Auth::user();
-        $contractSignature = $user->contractSignature;
-
-        // Add debug information
-        $debug = [
-            'user_id' => $user->id,
-            'has_contract_signature' => $contractSignature ? 'Yes' : 'No',
-            'contract_status' => $contractSignature ? $contractSignature->status : 'N/A',
-        ];
-
-        return view('contracts.user_contract', compact('contractSignature', 'debug'));
-    }
-
-    // These methods should be moved to an admin-only controller
+    // Admin-only methods
     public function countActiveContracts()
     {
-        // Add admin check here
-        if (!Auth::user()->hasRole('Admin')) {
-            return response('Unauthorized', 403);
-        }
-
-        return UserContractSignature::where('status', 'accepted')
-            ->where('created_at', '>=', Carbon::now()->subDays(365))
-            ->count();
+        return AdminContract::where('status', 'published')->count();
     }
 
     public function countExpiredContracts()
     {
-        // Add admin check here
-        if (!Auth::user()->hasRole('Admin')) {
-            return response('Unauthorized', 403);
-        }
-
-        return UserContractSignature::where('status', 'accepted')
-            ->where('created_at', '<', Carbon::now()->subDays(365))
-            ->count();
+        return AdminContract::where('end_date', '<', now())->count();
     }
 }

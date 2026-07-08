@@ -4,11 +4,9 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">@lang('Terminate Contract')</h5>
-                <button type="button" class="close" data-dismiss="modal">
-                    <span aria-hidden="true">&times;</span>
-                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form id="terminateForm" method="POST">
+            <form id="terminateForm" method="POST" action="">
                 @csrf
                 @method('PUT')
                 <div class="modal-body">
@@ -22,7 +20,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">@lang('Cancel')</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">@lang('Cancel')</button>
                     <button type="submit" class="btn btn-danger">@lang('Terminate Contract')</button>
                 </div>
             </form>
@@ -36,9 +34,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">@lang('Reset User Status')</h5>
-                <button type="button" class="close" data-dismiss="modal">
-                    <span aria-hidden="true">&times;</span>
-                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="resetForm" method="POST">
                 @csrf
@@ -68,9 +64,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">@lang('Contract Details')</h5>
-                <button type="button" class="close" data-dismiss="modal">
-                    <span aria-hidden="true">&times;</span>
-                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <div class="contract-details-content">

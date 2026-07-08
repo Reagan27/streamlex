@@ -8,11 +8,17 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AdminContract extends Model
 {
+    // Relationship: all user signatures for this contract
+    public function userContractSignatures()
+    {
+        return $this->hasMany(UserContractSignature::class, 'contract_id');
+    }
     protected $table = 'admin_contracts';
 
     protected $fillable = [
         'title',
         'start_date',
+        'end_date',
         'number_of_days',
         'description',
         'role_id',
@@ -20,7 +26,14 @@ class AdminContract extends Model
         'authority_name',
         'authority_designation',
         'authority_signature',
-        'active_for_onboarding' 
+        'active_for_onboarding',
+        'project_id',
+        'function_key',
+        'created_by',
+        'duration_type',
+        'engagement_type',
+        'user_id',
+        'contract_category'
     ];
 
     protected $casts = [
@@ -33,7 +46,7 @@ class AdminContract extends Model
 
     public const STATUS_DRAFT = 'draft';
     public const STATUS_PUBLISHED = 'published';
-    public const STATUS_DROP = 'drop';
+    public const STATUS_DROP = 'dropped';
 
     public function getStatusOptions()
     {

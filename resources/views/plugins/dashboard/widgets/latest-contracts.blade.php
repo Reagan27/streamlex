@@ -15,7 +15,7 @@
                                     @if ($contract['is_expired'])
                                         <span class="badge bg-danger">Expired</span>
                                     @else
-                                        {{ floor($contract['days_remaining']) }} days remaining
+                                        {{ (int)$contract['days_remaining'] }} days remaining
                                     @endif
                                 </small>
                             </div>
